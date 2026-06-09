@@ -1,0 +1,42 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.routers.receipt import router as receipts_router
+import os
+
+os.makedirs("uploads", exist_ok=True)
+
+app = FastAPI(
+    title="Smart Receipt Analyzer",
+    description="OCR-based expense tracking system",
+    version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*", "http://127.0.0.1:5500", "null"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(receipts_router, prefix="/api/receipts", tags=["receipts"])
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Smart Receipt Analyzer API",
+        "version": "1.0.0",
+        "endpoints": {
+            "upload_receipt": "POST /api/receipts/upload",
+            "get_receipts": "GET /api/receipts"
+        },
+        "docs": "/docs"
+    }
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "service": "receipt-analyzer"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
