@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.routers.receipt import router as receipts_router
 import os
 
@@ -21,21 +22,11 @@ app.add_middleware(
 
 app.include_router(receipts_router, prefix="/api/receipts", tags=["receipts"])
 
-@app.get("/")
-async def root():
-    return {
-        "message": "Smart Receipt Analyzer API",
-        "version": "1.0.0",
-        "endpoints": {
-            "upload_receipt": "POST /api/receipts/upload",
-            "get_receipts": "GET /api/receipts"
-        },
-        "docs": "/docs"
-    }
-
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "receipt-analyzer"}
+
+app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn

@@ -3,305 +3,491 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Receipt OCR Analyzer</title>
+    <title>Receipt Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --ink:       #111318;
+            --ink-mid:   #5a5f72;
+            --ink-light: #9ba3b8;
+            --surface:   #f7f8fc;
+            --card:      #ffffff;
+            --accent:    #2d6ef5;
+            --accent-bg: #edf2ff;
+            --green:     #1db87a;
+            --green-bg:  #e8faf3;
+            --red:       #e03b3b;
+            --red-bg:    #fdeaea;
+            --border:    #e4e7f0;
+            --shadow:    0 2px 12px rgba(17,19,24,0.07);
+            --radius:    12px;
         }
-        .container {
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--surface);
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px 80px;
+        }
+
+        /* ── Header ── */
+        header {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+        .logo {
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 10px;
         }
         h1 {
-            color: #333;
-            margin-bottom: 30px;
+            font-size: clamp(28px, 5vw, 42px);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            color: var(--ink);
         }
-        .upload-area {
-            border: 2px dashed #ccc;
-            border-radius: 8px;
-            padding: 40px;
+        h1 span {
+            color: var(--accent);
+        }
+        .subtitle {
+            margin-top: 10px;
+            color: var(--ink-mid);
+            font-size: 15px;
+        }
+
+        /* ── Main card ── */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            width: 100%;
+            max-width: 600px;
+            padding: 32px;
+        }
+
+        /* ── Upload zone ── */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 48px 24px;
             text-align: center;
             cursor: pointer;
-            margin-bottom: 20px;
+            transition: border-color 0.2s, background 0.2s;
+            position: relative;
         }
-        .upload-area:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
+        .upload-zone:hover, .upload-zone.drag-over {
+            border-color: var(--accent);
+            background: var(--accent-bg);
         }
-        #preview {
-            max-width: 100%;
-            max-height: 300px;
-            margin: 20px 0;
-            display: none;
-            border-radius: 4px;
-        }
-        button {
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            font-size: 16px;
+        .upload-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
             cursor: pointer;
-            width: 100%;
         }
-        button:hover {
-            background: #764ba2;
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
         }
-        button:disabled {
-            background: #ccc;
-            cursor: not-allowed;
+        .upload-zone h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--ink);
+            margin-bottom: 6px;
         }
-        #status {
-            margin: 20px 0;
-            padding: 10px;
-            border-radius: 4px;
+        .upload-zone p {
+            font-size: 13px;
+            color: var(--ink-light);
+        }
+
+        /* ── Preview ── */
+        #preview-wrap {
             display: none;
-        }
-        .status-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        #results {
-            margin-top: 30px;
-            display: none;
-        }
-        .result-card {
-            background: #f8f9fa;
+            margin-top: 20px;
             border-radius: 8px;
-            padding: 20px;
-            border-left: 4px solid #667eea;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            position: relative;
         }
-        .result-item {
-            margin: 10px 0;
+        #preview-wrap img {
+            width: 100%;
+            max-height: 260px;
+            object-fit: cover;
+            display: block;
         }
-        .result-label {
-            font-weight: bold;
-            color: #555;
+        .preview-label {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(17,19,24,0.65);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 20px;
+            backdrop-filter: blur(4px);
         }
-        .result-value {
-            color: #333;
-            margin-left: 10px;
+
+        /* ── Button ── */
+        .btn {
+            display: block;
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            background: var(--accent);
+            color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: opacity 0.15s, transform 0.1s;
+            letter-spacing: 0.01em;
         }
-        .items-list {
-            list-style: none;
-            padding: 0;
+        .btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+        .btn:active:not(:disabled) { transform: translateY(0); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ── Status bar ── */
+        #status {
+            display: none;
+            margin-top: 16px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
         }
-        .items-list li {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
+        #status.info    { background: var(--accent-bg); color: var(--accent); }
+        #status.success { background: var(--green-bg);  color: var(--green); }
+        #status.error   { background: var(--red-bg);    color: var(--red); }
+
+        /* ── Processing animation ── */
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Results ── */
+        #results {
+            display: none;
+            margin-top: 28px;
+        }
+        .results-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .results-header h2 {
+            font-size: 17px;
+            font-weight: 700;
+        }
+        .badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        .badge.verified   { background: var(--green-bg); color: var(--green); }
+        .badge.unverified { background: var(--red-bg);   color: var(--red); }
+
+        /* ── Data grid ── */
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .data-cell {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+        .data-cell.full { grid-column: 1 / -1; }
+        .data-cell label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+            margin-bottom: 4px;
+        }
+        .data-cell .value {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--ink);
+        }
+        .data-cell .value.total-value {
+            font-size: 22px;
+            color: var(--accent);
+        }
+        .data-cell .value.mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+        }
+
+        /* ── Items list ── */
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 4px;
+        }
+        .items-table tr {
+            border-bottom: 1px solid var(--border);
+        }
+        .items-table tr:last-child { border-bottom: none; }
+        .items-table td {
+            padding: 10px 0;
+            font-size: 14px;
+        }
+        .items-table td:last-child {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+            color: var(--ink);
+        }
+        .items-table td:first-child { color: var(--ink-mid); }
+
+        /* ── Raw JSON toggle ── */
+        .raw-toggle {
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--ink-light);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+        .raw-toggle:hover { color: var(--ink-mid); }
+        #raw-wrap {
+            display: none;
+            margin-top: 10px;
         }
         pre {
-            background: white;
-            padding: 10px;
-            border-radius: 4px;
-            overflow-x: auto;
+            background: var(--ink);
+            color: #a8d8a8;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 12px;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            line-height: 1.6;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🧾 Receipt OCR Analyzer</h1>
-        
-        <!-- Upload Section -->
-        <div class="upload-area" id="uploadArea">
-            <p>📁 Drag & drop or click to select receipt image</p>
-            <p style="color: #666; font-size: 14px;">Supports: JPG, PNG</p>
-        </div>
-        
-        <input type="file" id="fileInput" accept="image/*" style="display: none;">
-        <img id="preview" alt="Receipt preview">
-        
-        <button id="uploadBtn" disabled>Process Receipt</button>
-        
-        <div id="status"></div>
 
-        <!-- Results Section -->
-        <div id="results">
-            <h2>📋 Extracted Data</h2>
-            <div class="result-card" id="resultData"></div>
-            
-            <h3 style="margin-top: 20px;">🔍 Raw Response</h3>
+<header>
+    <div class="logo">Receipt Analyzer</div>
+    <h1>Scan any <span>receipt</span>,<br>get clean data.</h1>
+    <p class="subtitle">Upload a photo — OCR extracts vendor, items & total instantly.</p>
+</header>
+
+<div class="card">
+
+    <!-- Upload -->
+    <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="upload-icon">🧾</div>
+        <h3>Drop your receipt here</h3>
+        <p>or click to browse — JPG, PNG supported</p>
+    </div>
+
+    <!-- Preview -->
+    <div id="preview-wrap">
+        <span class="preview-label">Preview</span>
+        <img id="preview" alt="Receipt preview">
+    </div>
+
+    <button class="btn" id="uploadBtn" disabled>Analyze Receipt</button>
+
+    <div id="status"></div>
+
+    <!-- Results -->
+    <div id="results">
+        <div class="results-header">
+            <h2>Extracted Data</h2>
+            <span class="badge" id="verifiedBadge"></span>
+        </div>
+
+        <div class="data-grid">
+            <div class="data-cell">
+                <label>Vendor</label>
+                <div class="value" id="r-vendor">—</div>
+            </div>
+            <div class="data-cell">
+                <label>Date</label>
+                <div class="value mono" id="r-date">—</div>
+            </div>
+            <div class="data-cell">
+                <label>Total</label>
+                <div class="value total-value" id="r-total">Rs. 0.00</div>
+            </div>
+            <div class="data-cell">
+                <label>Confidence</label>
+                <div class="value" id="r-confidence">0%</div>
+            </div>
+            <div class="data-cell full" id="items-cell" style="display:none">
+                <label>Items</label>
+                <table class="items-table" id="r-items"></table>
+            </div>
+        </div>
+
+        <div class="raw-toggle" id="rawToggle">▶ Show raw JSON</div>
+        <div id="raw-wrap">
             <pre id="rawResponse"></pre>
         </div>
     </div>
 
-    <script>
-        // Configuration
-        const API_BASE = 'http://localhost:8000';
-        
-        // DOM Elements
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const statusDiv = document.getElementById('status');
-        const preview = document.getElementById('preview');
-        const resultsDiv = document.getElementById('results');
-        const resultData = document.getElementById('resultData');
-        const rawResponse = document.getElementById('rawResponse');
-        
-        let selectedFile = null;
+</div>
 
-        // Event Listeners
-        uploadArea.addEventListener('click', () => fileInput.click());
-        
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.style.background = '#f0f2ff';
-            uploadArea.style.borderColor = '#667eea';
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.style.background = 'white';
-            uploadArea.style.borderColor = '#ccc';
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.style.background = 'white';
-            uploadArea.style.borderColor = '#ccc';
-            
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                handleFileSelect(file);
-            }
-        });
+<script>
+    const API_BASE = 'http://localhost:8000';
 
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files[0]) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
+    const uploadZone = document.getElementById('uploadZone');
+    const fileInput  = document.getElementById('fileInput');
+    const uploadBtn  = document.getElementById('uploadBtn');
+    const statusDiv  = document.getElementById('status');
+    const previewWrap= document.getElementById('preview-wrap');
+    const preview    = document.getElementById('preview');
+    const resultsDiv = document.getElementById('results');
+    const rawToggle  = document.getElementById('rawToggle');
+    const rawWrap    = document.getElementById('raw-wrap');
 
-        uploadBtn.addEventListener('click', uploadReceipt);
+    let selectedFile = null;
 
-        // Functions
-        function handleFileSelect(file) {
-            selectedFile = file;
-            uploadBtn.disabled = false;
-            
-            // Show preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                preview.src = e.target.result;
-                preview.style.display = 'block';
-            };
-            reader.readAsDataURL(file);
-            
-            showStatus(`Selected: ${file.name}`, 'info');
-        }
+    // ── Drag & drop ──
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+        e.preventDefault();
+        uploadZone.classList.remove('drag-over');
+        const f = e.dataTransfer.files[0];
+        if (f && f.type.startsWith('image/')) handleFile(f);
+    });
+    fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
 
-        function showStatus(message, type = 'info') {
-            statusDiv.textContent = message;
-            statusDiv.style.display = 'block';
-            
-            if (type === 'success') {
-                statusDiv.className = 'status-success';
-            } else if (type === 'error') {
-                statusDiv.className = 'status-error';
+    function handleFile(file) {
+        selectedFile = file;
+        uploadBtn.disabled = false;
+        const reader = new FileReader();
+        reader.onload = e => {
+            preview.src = e.target.result;
+            previewWrap.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+        setStatus(`${file.name} ready`, 'info');
+    }
+
+    // ── Status helper ──
+    function setStatus(msg, type = 'info', spinner = false) {
+        statusDiv.className = type;
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = (spinner ? '<span class="spinner"></span>' : '') + msg;
+    }
+
+    // ── Upload ──
+    uploadBtn.addEventListener('click', async () => {
+        if (!selectedFile) return;
+        setStatus('Analyzing receipt…', 'info', true);
+        uploadBtn.disabled = true;
+        resultsDiv.style.display = 'none';
+
+        const form = new FormData();
+        form.append('image', selectedFile);
+
+        try {
+            const res  = await fetch(`${API_BASE}/api/receipts/upload`, { method: 'POST', body: form });
+            const data = await res.json();
+
+            if (res.ok) {
+                setStatus('Receipt analyzed successfully', 'success');
+                renderResults(data);
             } else {
-                statusDiv.style.background = '#e2e3e5';
-                statusDiv.style.color = '#383d41';
+                setStatus(`Error: ${data.detail || 'Unknown error'}`, 'error');
             }
+        } catch (err) {
+            console.error(err);
+            setStatus(`Could not reach server: ${err.message}`, 'error');
+        } finally {
+            uploadBtn.disabled = false;
         }
+    });
 
-        async function uploadReceipt() {
-            if (!selectedFile) {
-                alert('Please select a file first');
-                return;
+    // ── Render results ──
+    function renderResults(data) {
+        try {
+            const ex = data.extracted_data || {};
+
+            document.getElementById('r-vendor').textContent     = ex.vendor || '—';
+            document.getElementById('r-date').textContent       = ex.date   || '—';
+            document.getElementById('r-total').textContent      = `Rs. ${parseFloat(ex.total  || 0).toFixed(2)}`;
+            document.getElementById('r-confidence').textContent = `${ex.confidence || 0}%`;
+
+            const badge = document.getElementById('verifiedBadge');
+            if (ex.verified) {
+                badge.textContent  = '✓ Verified';
+                badge.className    = 'badge verified';
+            } else {
+                badge.textContent  = '✗ Unverified';
+                badge.className    = 'badge unverified';
             }
 
-            showStatus('Processing receipt...', 'info');
-            uploadBtn.disabled = true;
+            const itemsCell  = document.getElementById('items-cell');
+            const itemsTable = document.getElementById('r-items');
+            const items = Array.isArray(ex.items) ? ex.items : [];
 
-            const formData = new FormData();
-            formData.append('image', selectedFile);
-
-            try {
-                console.log('Uploading to:', `${API_BASE}/api/receipts/upload`);
-                
-                const response = await fetch(`${API_BASE}/api/receipts/upload`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const data = await response.json();
-                console.log('Response:', data);
-
-                if (response.ok) {
-                    showStatus('✅ Receipt processed successfully!', 'success');
-                    displayResults(data);
-                } else {
-                    showStatus(`❌ Error: ${data.detail || 'Unknown error'}`, 'error');
-                }
-            } catch (error) {
-                console.error('Upload error:', error);
-                showStatus(`❌ Error: ${error.message}`, 'error');
-            } finally {
-                uploadBtn.disabled = false;
+            if (items.length > 0) {
+                itemsTable.innerHTML = items.map(item => {
+                    const name  = item.name  || 'Unknown item';
+                    const price = parseFloat(item.price || 0).toFixed(2);
+                    return `<tr><td>${name}</td><td>Rs. ${price}</td></tr>`;
+                }).join('');
+                itemsCell.style.display = 'block';
+            } else {
+                itemsCell.style.display = 'none';
             }
-        }
 
-        function displayResults(data) {
-            const extracted = data.extracted_data || {};
-            
-            // Format items
-            let itemsHtml = '';
-            if (extracted.items && extracted.items.length > 0) {
-                itemsHtml = '<div class="result-item"><span class="result-label">Items:</span><ul class="items-list">';
-                extracted.items.forEach(item => {
-                    itemsHtml += `<li>${item.name}: <strong>Rs.${item.price.toFixed(2)}</strong></li>`;
-                });
-                itemsHtml += '</ul></div>';
-            }
-            
-            // Build display
-            resultData.innerHTML = `
-                <div class="result-item">
-                    <span class="result-label">Vendor:</span>
-                    <span class="result-value">${extracted.vendor || 'Unknown'}</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">Date:</span>
-                    <span class="result-value">${extracted.date || 'Not detected'}</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">Total:</span>
-                    <span class="result-value"><strong>Rs.${(extracted.total || 0).toFixed(2)}</strong></span>
-                </div>
-                ${itemsHtml}
-                <div class="result-item">
-                    <span class="result-label">Verified:</span>
-                    <span class="result-value">${extracted.verified ? '✅ Yes' : '❌ No'}</span>
-                </div>
-                <div class="result-item">
-                    <span class="result-label">Confidence:</span>
-                    <span class="result-value">${extracted.confidence || 0}%</span>
-                </div>
-            `;
-            
-            // Show raw JSON
-            rawResponse.textContent = JSON.stringify(data, null, 2);
-            
-            // Show results section
+            document.getElementById('rawResponse').textContent = JSON.stringify(data, null, 2);
             resultsDiv.style.display = 'block';
-            
-            // Scroll to results
-            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+            resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        } catch (err) {
+            console.error('renderResults error:', err);
+            setStatus(`Display error: ${err.message}`, 'error');
         }
-    </script>
+    }
+
+    // ── Raw JSON toggle ──
+    rawToggle.addEventListener('click', () => {
+        const open = rawWrap.style.display === 'block';
+        rawWrap.style.display = open ? 'none' : 'block';
+        rawToggle.textContent = (open ? '▶' : '▼') + ' Show raw JSON';
+    });
+</script>
 </body>
 </html>
