@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routers.receipt import router as receipts_router
 import os
+from app.db.connection import db
 
 os.makedirs("uploads", exist_ok=True)
 
@@ -11,6 +12,14 @@ app = FastAPI(
     description="OCR-based expense tracking system",
     version="1.0.0"
 )
+
+@app.on_event("startup")
+async def startup():
+    try:
+        await db.command("ping")
+        print("✅ Connected to MongoDB!")
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {e}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +35,7 @@ app.include_router(receipts_router, prefix="/api/receipts", tags=["receipts"])
 async def health():
     return {"status": "healthy", "service": "receipt-analyzer"}
 
+# Mount MUST be last
 app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
 
 if __name__ == "__main__":
