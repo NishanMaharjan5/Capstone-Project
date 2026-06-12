@@ -305,6 +305,10 @@
     <div class="logo">Receipt Analyzer</div>
     <h1>Scan any <span>receipt</span>,<br>get clean data.</h1>
     <p class="subtitle">Upload a photo — OCR extracts vendor, items & total instantly.</p>
+    <div style="margin-top: 16px; font-size: 14px; color: #5a5f72;">
+        👋 Welcome, <strong id="welcomeName"></strong> &nbsp;·&nbsp;
+        <a href="#" id="logoutBtn" style="color: #e03b3b; text-decoration: none; font-weight: 600;">Sign out</a>
+    </div>
 </header>
 
 <div class="card">
@@ -368,6 +372,10 @@
 <script>
     const API_BASE = 'http://localhost:8000';
 
+    // ── Auth guard ──
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
     const uploadZone = document.getElementById('uploadZone');
     const fileInput  = document.getElementById('fileInput');
     const uploadBtn  = document.getElementById('uploadBtn');
@@ -379,6 +387,13 @@
     const rawWrap    = document.getElementById('raw-wrap');
 
     let selectedFile = null;
+
+    document.getElementById('welcomeName').textContent = localStorage.getItem('userName') || 'User';
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userName');
+    window.location.href = 'login.html';
+});
 
     // ── Drag & drop ──
     uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
@@ -403,7 +418,6 @@
         setStatus(`${file.name} ready`, 'info');
     }
 
-    // ── Status helper ──
     function setStatus(msg, type = 'info', spinner = false) {
         statusDiv.className = type;
         statusDiv.style.display = 'block';
@@ -421,8 +435,21 @@
         form.append('image', selectedFile);
 
         try {
-            const res  = await fetch(`${API_BASE}/api/receipts/upload`, { method: 'POST', body: form });
+            const res = await fetch(`${API_BASE}/api/receipts/upload`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: form
+            });
             const data = await res.json();
+
+            if (res.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('userName');
+                window.location.href = 'login.html';
+                return;
+            }
 
             if (res.ok) {
                 setStatus('Receipt analyzed successfully', 'success');
@@ -442,25 +469,23 @@
     function renderResults(data) {
         try {
             const ex = data.extracted_data || {};
-
             document.getElementById('r-vendor').textContent     = ex.vendor || '—';
             document.getElementById('r-date').textContent       = ex.date   || '—';
-            document.getElementById('r-total').textContent      = `Rs. ${parseFloat(ex.total  || 0).toFixed(2)}`;
+            document.getElementById('r-total').textContent      = `Rs. ${parseFloat(ex.total || 0).toFixed(2)}`;
             document.getElementById('r-confidence').textContent = `${ex.confidence || 0}%`;
 
             const badge = document.getElementById('verifiedBadge');
             if (ex.verified) {
-                badge.textContent  = '✓ Verified';
-                badge.className    = 'badge verified';
+                badge.textContent = '✓ Verified';
+                badge.className   = 'badge verified';
             } else {
-                badge.textContent  = '✗ Unverified';
-                badge.className    = 'badge unverified';
+                badge.textContent = '✗ Unverified';
+                badge.className   = 'badge unverified';
             }
 
             const itemsCell  = document.getElementById('items-cell');
             const itemsTable = document.getElementById('r-items');
             const items = Array.isArray(ex.items) ? ex.items : [];
-
             if (items.length > 0) {
                 itemsTable.innerHTML = items.map(item => {
                     const name  = item.name  || 'Unknown item';
@@ -475,9 +500,7 @@
             document.getElementById('rawResponse').textContent = JSON.stringify(data, null, 2);
             resultsDiv.style.display = 'block';
             resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
         } catch (err) {
-            console.error('renderResults error:', err);
             setStatus(`Display error: ${err.message}`, 'error');
         }
     }

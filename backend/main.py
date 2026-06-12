@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.routers.receipt import router as receipts_router
+from app.routers.auth import router as auth_router
 import os
 from app.db.connection import db
 
@@ -29,6 +30,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(receipts_router, prefix="/api/receipts", tags=["receipts"])
 
 @app.get("/health")
