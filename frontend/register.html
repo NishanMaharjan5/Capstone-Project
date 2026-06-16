@@ -146,9 +146,7 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Registration failed');
 
-        localStorage.setItem('token', data.access_token);
-        localStorage.setItem('userName', data.name);
-        window.location.href = 'index.html';
+        window.location.href = 'login.html';
 
       } catch (err) {
         errorMsg.textContent = err.message;
