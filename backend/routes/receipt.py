@@ -3,6 +3,7 @@ import os
 import shutil
 from datetime import datetime
 from app.ocr.extractor import receipt_extractor
+from app.db.connection import receipts_collection
 
 router = APIRouter()
 
@@ -31,6 +32,25 @@ async def upload_receipt(image: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="No text detected in image")
         
         extracted_data = receipt_extractor.extract_fields(text_lines)
+
+        # Save to MongoDB
+        receipt_doc = {
+            "filename": filename,
+            "vendor": extracted_data.get("vendor"),
+            "date": extracted_data.get("date"),
+            "total": extracted_data.get("total"),
+            "items": extracted_data.get("items"),
+            "verified": extracted_data.get("verified"),
+            "confidence": extracted_data.get("confidence"),
+            "created_at": datetime.now().isoformat()
+        }
+        result = await receipts_collection.insert_one(receipt_doc)
+        print(f"✅ Receipt saved to MongoDB with id: {result.inserted_id}")
+
+        # Delete image after OCR — no storage waste
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            print(f"🗑️ Deleted image: {filename}")
         
         return {
             "success": True,
@@ -47,4 +67,7 @@ async def upload_receipt(image: UploadFile = File(...)):
 
 @router.get("/")
 async def get_receipts():
-    return {"message": "This will return all receipts from Google Sheets"}
+    receipts = await receipts_collection.find().to_list(100)
+    for r in receipts:
+        r["_id"] = str(r["_id"])  # convert ObjectId to string
+    return {"success": True, "receipts": receipts}

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Receipt History — Receipt Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --ink:       #111318;
+            --ink-mid:   #5a5f72;
+            --ink-light: #9ba3b8;
+            --surface:   #f7f8fc;
+            --card:      #ffffff;
+            --accent:    #2d6ef5;
+            --accent-bg: #edf2ff;
+            --green:     #1db87a;
+            --green-bg:  #e8faf3;
+            --red:       #e03b3b;
+            --red-bg:    #fdeaea;
+            --border:    #e4e7f0;
+            --shadow:    0 2px 12px rgba(17,19,24,0.07);
+            --radius:    12px;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--surface);
+            color: var(--ink);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px 80px;
+        }
+
+        /* ── Header ── */
+        header {
+            width: 100%;
+            max-width: 860px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 36px;
+            position: relative;
+        }
+        .back-btn {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--accent);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .back-btn:hover { opacity: 0.75; }
+        .header-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+
+        /* ── Avatar / dropdown ── */
+        .user-menu { position: relative; }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .dropdown {
+            display: none;
+            position: absolute;
+            top: 44px;
+            right: 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(17,19,24,0.12);
+            min-width: 180px;
+            z-index: 100;
+            overflow: hidden;
+        }
+        .dropdown.open { display: block; }
+        .dropdown-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .dropdown-header .name { font-size: 14px; font-weight: 600; color: var(--ink); }
+        .dropdown-header .email { font-size: 12px; color: var(--ink-light); margin-top: 2px; }
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 16px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--ink-mid);
+            cursor: pointer;
+            transition: background 0.15s;
+            text-decoration: none;
+        }
+        .dropdown-item:hover { background: var(--surface); color: var(--ink); }
+        .dropdown-item.danger { color: var(--red); }
+        .dropdown-item.danger:hover { background: var(--red-bg); }
+
+        /* ── Main container ── */
+        .container {
+            width: 100%;
+            max-width: 860px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ── Stats bar ── */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            box-shadow: var(--shadow);
+        }
+        .stat-card .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+            margin-bottom: 6px;
+        }
+        .stat-card .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--ink);
+        }
+        .stat-card .stat-value.accent { color: var(--accent); }
+
+        /* ── Card ── */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .card-header h2 { font-size: 16px; font-weight: 700; }
+
+        /* ── Table ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead tr {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+        thead th {
+            padding: 11px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+            text-align: left;
+        }
+        tbody tr {
+            border-bottom: 1px solid var(--border);
+            transition: background 0.15s;
+        }
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--surface); }
+        tbody td {
+            padding: 14px 16px;
+            font-size: 14px;
+            color: var(--ink);
+            vertical-align: middle;
+        }
+        .td-vendor { font-weight: 600; }
+        .td-total {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        .td-date { color: var(--ink-mid); font-size: 13px; }
+        .source-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 20px;
+            background: var(--accent-bg);
+            color: var(--accent);
+        }
+        .source-badge.manual {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: var(--ink-light);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.15s, color 0.15s;
+        }
+        .delete-btn:hover { background: var(--red-bg); color: var(--red); }
+
+        .empty-state {
+            padding: 48px 24px;
+            text-align: center;
+            color: var(--ink-light);
+            font-size: 14px;
+        }
+        .empty-state .emoji { font-size: 32px; margin-bottom: 12px; }
+
+        /* ── Manual entry form ── */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            padding: 24px;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full { grid-column: 1 / -1; }
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-light);
+        }
+        .form-group input, .form-group textarea {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Space Grotesk', sans-serif;
+            outline: none;
+            transition: border-color 0.2s;
+            background: var(--surface);
+        }
+        .form-group input:focus, .form-group textarea:focus { border-color: var(--accent); background: #fff; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        .items-hint {
+            font-size: 12px;
+            color: var(--ink-light);
+            margin-top: 4px;
+        }
+
+        .form-actions {
+            padding: 0 24px 24px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 11px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Space Grotesk', sans-serif;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-ghost {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--ink-mid);
+        }
+        .btn-ghost:hover { background: var(--surface); opacity: 1; }
+
+        .form-status {
+            margin: 0 24px 16px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            display: none;
+        }
+        .form-status.success { background: var(--green-bg); color: var(--green); }
+        .form-status.error   { background: var(--red-bg);   color: var(--red); }
+
+        /* ── Add entry toggle ── */
+        .add-toggle {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: 'Space Grotesk', sans-serif;
+            padding: 0;
+        }
+        .add-toggle:hover { opacity: 0.75; }
+
+        .spinner {
+            display: inline-block;
+            width: 12px; height: 12px;
+            border: 2px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <a href="index.html" class="back-btn">← Back</a>
+    <span class="header-title">Receipt History</span>
+    <div class="user-menu">
+        <div class="avatar" id="avatarBtn"></div>
+        <div class="dropdown" id="dropdown">
+            <div class="dropdown-header">
+                <div class="name" id="dropdownName"></div>
+                <div class="email" id="dropdownEmail"></div>
+            </div>
+            <a href="index.html" class="dropdown-item">🏠 &nbsp;Home</a>
+            <div class="dropdown-item danger" id="logoutBtn">🚪 &nbsp;Sign out</div>
+        </div>
+    </div>
+</header>
+
+<div class="container">
+
+    <!-- Stats -->
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-label">Total Receipts</div>
+            <div class="stat-value" id="statCount">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Spent</div>
+            <div class="stat-value accent" id="statTotal">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Latest Receipt</div>
+            <div class="stat-value" id="statLatest" style="font-size:15px;">—</div>
+        </div>
+    </div>
+
+    <!-- Receipt table -->
+    <div class="card">
+        <div class="card-header">
+            <h2>All Receipts</h2>
+            <button class="add-toggle" id="toggleForm">+ Add Manual Entry</button>
+        </div>
+
+        <!-- Manual entry form (hidden by default) -->
+        <div id="manualForm" style="display:none; border-bottom: 1px solid var(--border);">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Vendor</label>
+                    <input type="text" id="f-vendor" placeholder="e.g. Bhatbhateni" />
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="f-date" />
+                </div>
+                <div class="form-group">
+                    <label>Total (Rs.)</label>
+                    <input type="number" id="f-total" placeholder="e.g. 450.00" step="0.01" />
+                </div>
+                <div class="form-group">
+                    <label>Confidence (%)</label>
+                    <input type="number" id="f-confidence" placeholder="e.g. 95" min="0" max="100" />
+                </div>
+                <div class="form-group full">
+                    <label>Items</label>
+                    <textarea id="f-items" placeholder='One item per line: "Rice 120" or "Milk 80.50"'></textarea>
+                    <span class="items-hint">Format: item name then price, separated by a space. e.g. "Bread 60"</span>
+                </div>
+            </div>
+            <div class="form-status" id="formStatus"></div>
+            <div class="form-actions">
+                <button class="btn btn-primary" id="submitManual">Save Receipt</button>
+                <button class="btn btn-ghost" id="cancelManual">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div id="tableWrap">
+            <div class="empty-state">
+                <div class="spinner"></div> Loading receipts…
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const API_BASE = 'http://localhost:8000';
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = 'login.html';
+
+    // ── User menu ──
+    const userName  = localStorage.getItem('userName') || 'User';
+    const userEmail = localStorage.getItem('userEmail') || '';
+    document.getElementById('avatarBtn').textContent     = userName.charAt(0).toUpperCase();
+    document.getElementById('dropdownName').textContent  = userName;
+    document.getElementById('dropdownEmail').textContent = userEmail;
+
+    document.getElementById('avatarBtn').addEventListener('click', e => {
+        e.stopPropagation();
+        document.getElementById('dropdown').classList.toggle('open');
+    });
+    document.addEventListener('click', () => {
+        document.getElementById('dropdown').classList.remove('open');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = 'login.html';
+    });
+
+    // ── Load receipts ──
+    let allReceipts = [];
+
+    async function loadReceipts() {
+        try {
+            const res  = await fetch(`${API_BASE}/api/receipts/`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.status === 401) { localStorage.clear(); window.location.href = 'login.html'; return; }
+            const data = await res.json();
+            allReceipts = data.receipts || [];
+            renderTable();
+            renderStats();
+        } catch (err) {
+            document.getElementById('tableWrap').innerHTML = `<div class="empty-state">❌ Could not load receipts</div>`;
+        }
+    }
+
+    function renderStats() {
+        const count = allReceipts.length;
+        const total = allReceipts.reduce((sum, r) => sum + (parseFloat(r.total) || 0), 0);
+        const latest = allReceipts.length > 0 ? (allReceipts[0].vendor || 'Unknown') : '—';
+
+        document.getElementById('statCount').textContent  = count;
+        document.getElementById('statTotal').textContent  = `Rs. ${total.toFixed(2)}`;
+        document.getElementById('statLatest').textContent = latest;
+    }
+
+    function renderTable() {
+        const wrap = document.getElementById('tableWrap');
+
+        if (allReceipts.length === 0) {
+            wrap.innerHTML = `
+                <div class="empty-state">
+                    <div class="emoji">🧾</div>
+                    No receipts yet. Upload one or add manually!
+                </div>`;
+            return;
+        }
+
+        const rows = allReceipts.map(r => {
+            const items = Array.isArray(r.items) && r.items.length > 0
+                ? r.items.map(i => `${i.name} — Rs.${parseFloat(i.price||0).toFixed(2)}`).join(', ')
+                : '—';
+            const sourceClass = r.source === 'manual' ? 'manual' : '';
+            const sourceLabel = r.source === 'manual' ? '✏️ Manual' : '📷 OCR';
+            const date = r.date || r.created_at?.split('T')[0] || '—';
+
+            return `
+                <tr>
+                    <td class="td-vendor">${r.vendor || '—'}</td>
+                    <td class="td-date">${date}</td>
+                    <td class="td-total">Rs. ${parseFloat(r.total || 0).toFixed(2)}</td>
+                    <td>${r.confidence != null ? r.confidence + '%' : '—'}</td>
+                    <td><span class="source-badge ${sourceClass}">${sourceLabel}</span></td>
+                    <td title="${items}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:var(--ink-mid);">${items}</td>
+                    <td><button class="delete-btn" onclick="deleteReceipt('${r._id}')">🗑</button></td>
+                </tr>`;
+        }).join('');
+
+        wrap.innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Vendor</th>
+                        <th>Date</th>
+                        <th>Total</th>
+                        <th>Confidence</th>
+                        <th>Source</th>
+                        <th>Items</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+    }
+
+    // ── Delete ──
+    async function deleteReceipt(id) {
+        if (!confirm('Delete this receipt?')) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/receipts/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                allReceipts = allReceipts.filter(r => r._id !== id);
+                renderTable();
+                renderStats();
+            } else {
+                alert('Failed to delete receipt.');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    // ── Manual entry form ──
+    document.getElementById('toggleForm').addEventListener('click', () => {
+        const form = document.getElementById('manualForm');
+        const isOpen = form.style.display !== 'none';
+        form.style.display = isOpen ? 'none' : 'block';
+        document.getElementById('toggleForm').textContent = isOpen ? '+ Add Manual Entry' : '✕ Close Form';
+    });
+
+    document.getElementById('cancelManual').addEventListener('click', () => {
+        document.getElementById('manualForm').style.display = 'none';
+        document.getElementById('toggleForm').textContent = '+ Add Manual Entry';
+        clearForm();
+    });
+
+    function clearForm() {
+        ['f-vendor','f-date','f-total','f-confidence','f-items'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        const s = document.getElementById('formStatus');
+        s.style.display = 'none';
+    }
+
+    function parseItems(text) {
+        if (!text.trim()) return [];
+        return text.trim().split('\n').map(line => {
+            const parts = line.trim().split(' ');
+            const price = parseFloat(parts[parts.length - 1]);
+            const name  = isNaN(price)
+                ? line.trim()
+                : parts.slice(0, parts.length - 1).join(' ');
+            return { name, price: isNaN(price) ? 0 : price };
+        }).filter(i => i.name);
+    }
+
+    document.getElementById('submitManual').addEventListener('click', async () => {
+        const btn = document.getElementById('submitManual');
+        const statusEl = document.getElementById('formStatus');
+
+        const vendor     = document.getElementById('f-vendor').value.trim();
+        const date       = document.getElementById('f-date').value;
+        const total      = parseFloat(document.getElementById('f-total').value);
+        const confidence = parseInt(document.getElementById('f-confidence').value) || null;
+        const itemsRaw   = document.getElementById('f-items').value;
+        const items      = parseItems(itemsRaw);
+
+        if (!vendor && !total) {
+            statusEl.textContent = 'Please fill in at least vendor or total.';
+            statusEl.className = 'form-status error';
+            statusEl.style.display = 'block';
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Saving…';
+
+        try {
+            const res = await fetch(`${API_BASE}/api/receipts/manual`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ vendor, date, total: isNaN(total) ? null : total, items, confidence })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                statusEl.textContent = '✓ Receipt saved!';
+                statusEl.className = 'form-status success';
+                statusEl.style.display = 'block';
+                clearForm();
+                await loadReceipts();
+                setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+            } else {
+                throw new Error(data.detail || 'Failed to save');
+            }
+        } catch (err) {
+            statusEl.textContent = err.message;
+            statusEl.className = 'form-status error';
+            statusEl.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save Receipt';
+        }
+    });
+
+    // ── Init ──
+    loadReceipts();
+</script>
+</body>
+</html>
