@@ -7,7 +7,7 @@ import shutil
 from datetime import datetime
 from app.ocr.extractor import receipt_extractor
 from app.db.connection import receipts_collection
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 router = APIRouter()
@@ -30,17 +30,61 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-# ── Manual entry schema ──
+# -- Receipt schemas --
 class ReceiptItem(BaseModel):
     name: str
-    price: float
+    quantity: float = 1
+    unit_price: float = 0
+    price: Optional[float] = None
+
+
+class SaveReceiptRequest(BaseModel):
+    vendor: Optional[str] = None
+    date: Optional[str] = None
+    total: Optional[float] = None
+    category: Optional[str] = None
+    items: List[ReceiptItem] = Field(default_factory=list)
+    verified: Optional[bool] = False
+    raw_text: List[str] = Field(default_factory=list)
 
 class ManualReceiptRequest(BaseModel):
     vendor: Optional[str] = None
     date: Optional[str] = None
     total: Optional[float] = None
-    items: Optional[List[ReceiptItem]] = []
-    confidence: Optional[int] = None
+    category: Optional[str] = None
+    items: List[ReceiptItem] = Field(default_factory=list)
+
+
+def normalize_items(items: List[ReceiptItem]) -> List[dict]:
+    normalized = []
+    for item in items or []:
+        quantity = item.quantity or 1
+        unit_price = item.unit_price
+        if (unit_price is None or unit_price == 0) and item.price is not None:
+            unit_price = item.price / quantity if quantity else item.price
+        line_total = quantity * (unit_price or 0)
+        normalized.append({
+            "name": item.name,
+            "quantity": quantity,
+            "unit_price": unit_price or 0,
+            "price": line_total
+        })
+    return normalized
+
+
+def require_category(category: Optional[str]) -> str:
+    if not category or not category.strip():
+        raise HTTPException(status_code=400, detail="Category is required")
+    return category.strip()
+
+
+def require_manual_receipt(body: ManualReceiptRequest) -> None:
+    if not body.vendor or not body.vendor.strip():
+        raise HTTPException(status_code=400, detail="Vendor name is required")
+    if not body.date:
+        raise HTTPException(status_code=400, detail="Receipt date is required")
+    if not body.items:
+        raise HTTPException(status_code=400, detail="At least one item is required")
 
 
 @router.post("/upload")
@@ -48,7 +92,7 @@ async def upload_receipt(
     image: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    if not image.content_type.startswith('image/'):
+    if not image.content_type or not image.content_type.startswith('image/'):
         raise HTTPException(status_code=400, detail="File must be an image")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -69,21 +113,6 @@ async def upload_receipt(
 
         extracted_data = receipt_extractor.extract_fields(text_lines)
 
-        receipt_doc = {
-            "user_id": current_user["sub"],
-            "filename": filename,
-            "vendor": extracted_data.get("vendor"),
-            "date": extracted_data.get("date"),
-            "total": extracted_data.get("total"),
-            "items": extracted_data.get("items"),
-            "verified": extracted_data.get("verified"),
-            "confidence": extracted_data.get("confidence"),
-            "source": "ocr",
-            "created_at": datetime.now().isoformat()
-        }
-        result = await receipts_collection.insert_one(receipt_doc)
-        print(f"✅ Receipt saved for user {current_user['email']} | id: {result.inserted_id}")
-
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -92,18 +121,22 @@ async def upload_receipt(
             "filename": filename,
             "raw_text": text_lines,
             "extracted_data": extracted_data,
-            "message": "Receipt processed successfully"
+            "message": "Receipt analyzed. Confirm to save or discard."
         }
 
+    except HTTPException:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
     except Exception as e:
         if os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
 
-@router.post("/manual")
-async def add_manual_receipt(
-    body: ManualReceiptRequest,
+@router.post("/save")
+async def save_receipt(
+    body: SaveReceiptRequest,
     current_user: dict = Depends(get_current_user)
 ):
     receipt_doc = {
@@ -112,9 +145,36 @@ async def add_manual_receipt(
         "vendor": body.vendor,
         "date": body.date,
         "total": body.total,
-        "items": [item.dict() for item in body.items] if body.items else [],
+        "category": require_category(body.category),
+        "items": normalize_items(body.items),
+        "verified": body.verified,
+        "raw_text": body.raw_text,
+        "source": "ocr",
+        "created_at": datetime.now().isoformat()
+    }
+    result = await receipts_collection.insert_one(receipt_doc)
+    print(f"✅ Confirmed receipt saved for user {current_user['email']} | id: {result.inserted_id}")
+    return {"success": True, "id": str(result.inserted_id), "message": "Receipt saved successfully"}
+
+
+@router.post("/manual")
+async def add_manual_receipt(
+    body: ManualReceiptRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    require_manual_receipt(body)
+    normalized_items = normalize_items(body.items)
+    total = sum(item["price"] for item in normalized_items)
+
+    receipt_doc = {
+        "user_id": current_user["sub"],
+        "filename": None,
+        "vendor": body.vendor.strip(),
+        "date": body.date,
+        "total": total,
+        "category": require_category(body.category),
+        "items": normalized_items,
         "verified": True,
-        "confidence": body.confidence,
         "source": "manual",
         "created_at": datetime.now().isoformat()
     }

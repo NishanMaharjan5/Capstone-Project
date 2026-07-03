@@ -349,6 +349,34 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 14px;
         }
+        .category-select {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--ink);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 15px;
+            font-weight: 600;
+            padding: 10px 12px;
+            outline: none;
+        }
+        .category-select:focus { border-color: var(--accent); }
+        .confirm-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 18px;
+        }
+        .btn.secondary {
+            background: #fff;
+            color: var(--ink-mid);
+            border: 1px solid var(--border);
+        }
+        .btn.secondary:hover:not(:disabled) {
+            background: var(--surface);
+            opacity: 1;
+        }
 
         /* ── Items table ── */
         .items-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
@@ -462,13 +490,27 @@
                 <div class="value total-value" id="r-total">Rs. 0.00</div>
             </div>
             <div class="data-cell">
-                <label>Confidence</label>
-                <div class="value" id="r-confidence">0%</div>
+                <label>Category</label>
+                <select class="category-select" id="r-category" required>
+                    <option value="" selected disabled>Select category</option>
+                    <option>Food & Dining</option>
+                    <option>Groceries</option>
+                    <option>Transport & Vehicle</option>
+                    <option>Health & Medical</option>
+                    <option>Entertainment</option>
+                    <option>Shopping</option>
+                    <option>Utilities & Bills</option>
+                    <option>Other</option>
+                </select>
             </div>
             <div class="data-cell full" id="items-cell" style="display:none">
                 <label>Items</label>
                 <table class="items-table" id="r-items"></table>
             </div>
+        </div>
+        <div class="confirm-actions">
+            <button class="btn" id="saveDraftBtn">Save Receipt</button>
+            <button class="btn secondary" id="discardDraftBtn">Discard</button>
         </div>
         <div class="raw-toggle" id="rawToggle">▶ Show raw JSON</div>
         <div id="raw-wrap">
@@ -516,8 +558,11 @@
     const resultsDiv = document.getElementById('results');
     const rawToggle  = document.getElementById('rawToggle');
     const rawWrap    = document.getElementById('raw-wrap');
+    const saveDraftBtn = document.getElementById('saveDraftBtn');
+    const discardDraftBtn = document.getElementById('discardDraftBtn');
 
     let selectedFile = null;
+    let pendingDraft = null;
 
     uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
     uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
@@ -531,7 +576,9 @@
 
     function handleFile(file) {
         selectedFile = file;
+        pendingDraft = null;
         uploadBtn.disabled = false;
+        resultsDiv.style.display = 'none';
         const reader = new FileReader();
         reader.onload = e => {
             preview.src = e.target.result;
@@ -572,9 +619,8 @@
             }
 
             if (res.ok) {
-                setStatus('Receipt analyzed successfully', 'success');
+                setStatus('Review the extracted data, choose a category, then save or discard.', 'success');
                 renderResults(data);
-                loadRecentReceipts();
             } else {
                 setStatus(`Error: ${data.detail || 'Unknown error'}`, 'error');
             }
@@ -589,10 +635,14 @@
     function renderResults(data) {
         try {
             const ex = data.extracted_data || {};
+            pendingDraft = {
+                raw_text: data.raw_text || [],
+                extracted_data: ex
+            };
             document.getElementById('r-vendor').textContent     = ex.vendor || '—';
             document.getElementById('r-date').textContent       = ex.date   || '—';
             document.getElementById('r-total').textContent      = `Rs. ${parseFloat(ex.total || 0).toFixed(2)}`;
-            document.getElementById('r-confidence').textContent = `${ex.confidence || 0}%`;
+            document.getElementById('r-category').value = '';
 
             const badge = document.getElementById('verifiedBadge');
             badge.textContent = ex.verified ? '✓ Verified' : '✗ Unverified';
@@ -602,9 +652,12 @@
             const itemsTable = document.getElementById('r-items');
             const items = Array.isArray(ex.items) ? ex.items : [];
             if (items.length > 0) {
-                itemsTable.innerHTML = items.map(item =>
-                    `<tr><td>${item.name || 'Unknown item'}</td><td>Rs. ${parseFloat(item.price || 0).toFixed(2)}</td></tr>`
-                ).join('');
+                itemsTable.innerHTML = items.map(item => {
+                    const quantity = parseFloat(item.quantity || 1);
+                    const unitPrice = parseFloat(item.unit_price || item.price || 0);
+                    const lineTotal = parseFloat(item.price || (quantity * unitPrice) || 0);
+                    return `<tr><td>${item.name || 'Unknown item'} <span style="color:var(--ink-light);">x${quantity}</span></td><td>Rs. ${lineTotal.toFixed(2)}</td></tr>`;
+                }).join('');
                 itemsCell.style.display = 'block';
             } else {
                 itemsCell.style.display = 'none';
@@ -617,6 +670,88 @@
             setStatus(`Display error: ${err.message}`, 'error');
         }
     }
+
+    function normalizeDraftItems(items) {
+        return (Array.isArray(items) ? items : []).map(item => {
+            const quantity = parseFloat(item.quantity || 1);
+            const unitPrice = parseFloat(item.unit_price || item.price || 0);
+            return {
+                name: item.name || 'Unknown item',
+                quantity,
+                unit_price: unitPrice
+            };
+        });
+    }
+
+    saveDraftBtn.addEventListener('click', async () => {
+        if (!pendingDraft) return;
+        const selectedCategory = document.getElementById('r-category').value;
+        if (!selectedCategory) {
+            setStatus('Please select a category before saving.', 'error');
+            document.getElementById('r-category').focus();
+            return;
+        }
+
+        const ex = pendingDraft.extracted_data || {};
+        const payload = {
+            vendor: ex.vendor || null,
+            date: ex.date || null,
+            total: ex.total == null ? null : parseFloat(ex.total),
+            category: selectedCategory,
+            items: normalizeDraftItems(ex.items),
+            verified: Boolean(ex.verified),
+            raw_text: pendingDraft.raw_text
+        };
+
+        saveDraftBtn.disabled = true;
+        discardDraftBtn.disabled = true;
+        saveDraftBtn.innerHTML = '<span class="spinner"></span>Saving...';
+
+        try {
+            const res = await fetch(`${API_BASE}/api/receipts/save`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (res.status === 401) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+                return;
+            }
+
+            if (!res.ok) throw new Error(data.detail || 'Failed to save receipt');
+
+            setStatus('Receipt saved successfully.', 'success');
+            pendingDraft = null;
+            selectedFile = null;
+            fileInput.value = '';
+            previewWrap.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            uploadBtn.disabled = true;
+            loadRecentReceipts();
+        } catch (err) {
+            setStatus(err.message, 'error');
+        } finally {
+            saveDraftBtn.disabled = false;
+            discardDraftBtn.disabled = false;
+            saveDraftBtn.textContent = 'Save Receipt';
+        }
+    });
+
+    discardDraftBtn.addEventListener('click', () => {
+        pendingDraft = null;
+        selectedFile = null;
+        fileInput.value = '';
+        previewWrap.style.display = 'none';
+        resultsDiv.style.display = 'none';
+        uploadBtn.disabled = true;
+        setStatus('Receipt discarded. Nothing was saved.', 'info');
+    });
 
     // ── Raw JSON toggle ──
     rawToggle.addEventListener('click', () => {

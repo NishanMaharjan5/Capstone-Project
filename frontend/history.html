@@ -256,7 +256,7 @@
             text-transform: uppercase;
             color: var(--ink-light);
         }
-        .form-group input, .form-group textarea {
+        .form-group input, .form-group textarea, .form-group select {
             padding: 10px 14px;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -266,13 +266,148 @@
             transition: border-color 0.2s;
             background: var(--surface);
         }
-        .form-group input:focus, .form-group textarea:focus { border-color: var(--accent); background: #fff; }
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent); background: #fff; }
         .form-group textarea { resize: vertical; min-height: 80px; }
 
-        .items-hint {
-            font-size: 12px;
+        .manual-items {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .manual-item-row {
+            display: grid;
+            grid-template-columns: 1fr 110px 130px 38px;
+            gap: 10px;
+            align-items: end;
+        }
+        .manual-item-row .remove-item {
+            height: 39px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
             color: var(--ink-light);
-            margin-top: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .manual-item-row .remove-item:hover {
+            background: var(--red-bg);
+            color: var(--red);
+        }
+        .detail-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .detail-btn:hover { background: var(--accent-bg); }
+        .detail-row td {
+            padding: 0;
+            background: #fff;
+        }
+        .receipt-detail {
+            margin: 0;
+            padding: 22px 20px 26px;
+            border-top: 1px solid var(--border);
+            background:
+                linear-gradient(90deg, rgba(17,19,24,0.04) 50%, transparent 0) 0 0 / 10px 1px repeat-x,
+                #fbfcff;
+        }
+        .receipt-paper {
+            max-width: 460px;
+            margin: 0 auto;
+            background: #fff;
+            border: 1px solid #d9deeb;
+            border-radius: 6px;
+            box-shadow: 0 10px 28px rgba(17,19,24,0.08);
+            padding: 24px 24px 18px;
+            color: var(--ink);
+        }
+        .receipt-head {
+            text-align: center;
+            border-bottom: 1px dashed #c8cede;
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+        }
+        .receipt-head h3 {
+            font-size: 22px;
+            line-height: 1.15;
+            margin-bottom: 8px;
+            color: var(--ink);
+        }
+        .receipt-meta {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 6px 14px;
+            color: var(--ink-mid);
+            font-size: 12px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .receipt-category {
+            margin-top: 10px;
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--accent-bg);
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .digital-items {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+        }
+        .digital-items th,
+        .digital-items td {
+            padding: 9px 0;
+            border-bottom: 1px dashed #d8deea;
+            font-size: 13px;
+        }
+        .digital-items tr:last-child td { border-bottom: none; }
+        .digital-items td:not(:first-child),
+        .digital-items th:not(:first-child) {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .receipt-total {
+            border-top: 2px solid var(--ink);
+            margin-top: 12px;
+            padding-top: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-weight: 800;
+        }
+        .receipt-total span:first-child {
+            font-size: 13px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .receipt-total span:last-child {
+            font-size: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent);
+        }
+        .receipt-foot {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px dashed #c8cede;
+            text-align: center;
+            color: var(--ink-light);
+            font-size: 11px;
+        }
+        .row-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
         }
 
         .form-actions {
@@ -335,6 +470,23 @@
             vertical-align: middle;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 720px) {
+            .stats-bar,
+            .form-grid,
+            .manual-item-row {
+                grid-template-columns: 1fr;
+            }
+            .manual-item-row .remove-item {
+                width: 100%;
+            }
+            table {
+                min-width: 680px;
+            }
+            #tableWrap {
+                overflow-x: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -393,22 +545,32 @@
                 </div>
                 <div class="form-group">
                     <label>Total (Rs.)</label>
-                    <input type="number" id="f-total" placeholder="e.g. 450.00" step="0.01" />
+                    <input type="number" id="f-total" placeholder="0.00" step="0.01" readonly />
                 </div>
                 <div class="form-group">
-                    <label>Confidence (%)</label>
-                    <input type="number" id="f-confidence" placeholder="e.g. 95" min="0" max="100" />
+                    <label>Category</label>
+                    <select id="f-category" required>
+                        <option value="" selected disabled>Select category</option>
+                        <option>Food & Dining</option>
+                        <option>Groceries</option>
+                        <option>Transport & Vehicle</option>
+                        <option>Health & Medical</option>
+                        <option>Entertainment</option>
+                        <option>Shopping</option>
+                        <option>Utilities & Bills</option>
+                        <option>Other</option>
+                    </select>
                 </div>
-                <div class="form-group full">
-                    <label>Items</label>
-                    <textarea id="f-items" placeholder='One item per line: "Rice 120" or "Milk 80.50"'></textarea>
-                    <span class="items-hint">Format: item name then price, separated by a space. e.g. "Bread 60"</span>
+                <div class="manual-items">
+                    <div class="section-label">Items</div>
+                    <div id="manualItems"></div>
+                    <button class="btn btn-ghost" id="addManualItem" type="button">+ Add Item</button>
                 </div>
             </div>
             <div class="form-status" id="formStatus"></div>
             <div class="form-actions">
                 <button class="btn btn-primary" id="submitManual">Save Receipt</button>
-                <button class="btn btn-ghost" id="cancelManual">Cancel</button>
+                <button class="btn btn-ghost" id="cancelManual">Discard</button>
             </div>
         </div>
 
@@ -449,6 +611,26 @@
     // ── Load receipts ──
     let allReceipts = [];
 
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        }[char]));
+    }
+
+    function formatMoney(value) {
+        return `Rs. ${parseFloat(value || 0).toFixed(2)}`;
+    }
+
+    function itemLineTotal(item) {
+        const quantity = parseFloat(item.quantity || 1);
+        const unitPrice = parseFloat(item.unit_price ?? item.price ?? 0);
+        return parseFloat(item.price ?? (quantity * unitPrice) ?? 0);
+    }
+
     async function loadReceipts() {
         try {
             const res  = await fetch(`${API_BASE}/api/receipts/`, {
@@ -486,23 +668,71 @@
             return;
         }
 
-        const rows = allReceipts.map(r => {
-            const items = Array.isArray(r.items) && r.items.length > 0
-                ? r.items.map(i => `${i.name} — Rs.${parseFloat(i.price||0).toFixed(2)}`).join(', ')
-                : '—';
+        const rows = allReceipts.map((r, index) => {
             const sourceClass = r.source === 'manual' ? 'manual' : '';
             const sourceLabel = r.source === 'manual' ? '✏️ Manual' : '📷 OCR';
             const date = r.date || r.created_at?.split('T')[0] || '—';
+            const detailId = `receipt-detail-${index}`;
+            const category = r.category || 'Other';
+            const items = Array.isArray(r.items) ? r.items : [];
+            const itemRows = items.length > 0
+                ? items.map(item => {
+                    const quantity = parseFloat(item.quantity || 1);
+                    const unitPrice = parseFloat(item.unit_price ?? item.price ?? 0);
+                    return `
+                        <tr>
+                            <td>${escapeHtml(item.name || 'Unknown item')}</td>
+                            <td>${quantity}</td>
+                            <td>${formatMoney(unitPrice)}</td>
+                            <td>${formatMoney(itemLineTotal(item))}</td>
+                        </tr>`;
+                }).join('')
+                : '<tr><td colspan="4" style="text-align:center; color:var(--ink-light); font-family:Space Grotesk, sans-serif;">No items recorded</td></tr>';
 
             return `
                 <tr>
-                    <td class="td-vendor">${r.vendor || '—'}</td>
-                    <td class="td-date">${date}</td>
-                    <td class="td-total">Rs. ${parseFloat(r.total || 0).toFixed(2)}</td>
-                    <td>${r.confidence != null ? r.confidence + '%' : '—'}</td>
+                    <td class="td-vendor">${escapeHtml(r.vendor || '—')}</td>
+                    <td class="td-date">${escapeHtml(date)}</td>
+                    <td class="td-total">${formatMoney(r.total)}</td>
                     <td><span class="source-badge ${sourceClass}">${sourceLabel}</span></td>
-                    <td title="${items}" style="max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:var(--ink-mid);">${items}</td>
-                    <td><button class="delete-btn" onclick="deleteReceipt('${r._id}')">🗑</button></td>
+                    <td>
+                        <div class="row-actions">
+                            <button class="detail-btn" onclick="toggleDetails('${detailId}', this)">View Details</button>
+                            <button class="delete-btn" onclick="deleteReceipt('${r._id}')">🗑</button>
+                        </div>
+                    </td>
+                </tr>
+                <tr class="detail-row" id="${detailId}" style="display:none;">
+                    <td colspan="5">
+                        <div class="receipt-detail">
+                            <div class="receipt-paper">
+                                <div class="receipt-head">
+                                    <h3>${escapeHtml(r.vendor || 'Unknown Vendor')}</h3>
+                                    <div class="receipt-meta">
+                                        <span>${escapeHtml(date)}</span>
+                                        <span>${escapeHtml(sourceLabel.replace('✏️ ', '').replace('📷 ', ''))}</span>
+                                    </div>
+                                    <span class="receipt-category">${escapeHtml(category)}</span>
+                                </div>
+                                <table class="digital-items">
+                                    <thead>
+                                        <tr>
+                                            <th>Item</th>
+                                            <th>Qty</th>
+                                            <th>Price</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${itemRows}</tbody>
+                                </table>
+                                <div class="receipt-total">
+                                    <span>Grand Total</span>
+                                    <span>${formatMoney(r.total)}</span>
+                                </div>
+                                <div class="receipt-foot">Digital receipt generated from ${escapeHtml(sourceLabel.replace('✏️ ', '').replace('📷 ', ''))} entry</div>
+                            </div>
+                        </div>
+                    </td>
                 </tr>`;
         }).join('');
 
@@ -513,14 +743,19 @@
                         <th>Vendor</th>
                         <th>Date</th>
                         <th>Total</th>
-                        <th>Confidence</th>
                         <th>Source</th>
-                        <th>Items</th>
-                        <th></th>
+                        <th style="text-align:right;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>`;
+    }
+
+    function toggleDetails(id, button) {
+        const row = document.getElementById(id);
+        const isOpen = row.style.display === 'table-row';
+        row.style.display = isOpen ? 'none' : 'table-row';
+        button.textContent = isOpen ? 'View Details' : 'Hide Details';
     }
 
     // ── Delete ──
@@ -549,6 +784,7 @@
         const isOpen = form.style.display !== 'none';
         form.style.display = isOpen ? 'none' : 'block';
         document.getElementById('toggleForm').textContent = isOpen ? '+ Add Manual Entry' : '✕ Close Form';
+        if (!isOpen && document.querySelectorAll('.manual-item-row').length === 0) addManualItemRow();
     });
 
     document.getElementById('cancelManual').addEventListener('click', () => {
@@ -558,24 +794,60 @@
     });
 
     function clearForm() {
-        ['f-vendor','f-date','f-total','f-confidence','f-items'].forEach(id => {
+        ['f-vendor','f-date','f-total'].forEach(id => {
             document.getElementById(id).value = '';
         });
+        document.getElementById('f-category').value = '';
+        document.getElementById('manualItems').innerHTML = '';
+        addManualItemRow();
         const s = document.getElementById('formStatus');
         s.style.display = 'none';
     }
 
-    function parseItems(text) {
-        if (!text.trim()) return [];
-        return text.trim().split('\n').map(line => {
-            const parts = line.trim().split(' ');
-            const price = parseFloat(parts[parts.length - 1]);
-            const name  = isNaN(price)
-                ? line.trim()
-                : parts.slice(0, parts.length - 1).join(' ');
-            return { name, price: isNaN(price) ? 0 : price };
-        }).filter(i => i.name);
+    function addManualItemRow() {
+        const container = document.getElementById('manualItems');
+        const row = document.createElement('div');
+        row.className = 'manual-item-row';
+        row.innerHTML = `
+            <div class="form-group">
+                <label>Item</label>
+                <input type="text" class="item-name" placeholder="e.g. Chain lube" />
+            </div>
+            <div class="form-group">
+                <label>Quantity</label>
+                <input type="number" class="item-quantity" min="0" step="1" value="1" />
+            </div>
+            <div class="form-group">
+                <label>Unit Price</label>
+                <input type="number" class="item-unit-price" min="0" step="0.01" placeholder="0.00" />
+            </div>
+            <button class="remove-item" type="button">×</button>
+        `;
+        row.querySelector('.remove-item').addEventListener('click', () => {
+            row.remove();
+            recalcManualTotal();
+        });
+        row.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', recalcManualTotal);
+        });
+        container.appendChild(row);
     }
+
+    function getManualItems() {
+        return Array.from(document.querySelectorAll('.manual-item-row')).map(row => {
+            const name = row.querySelector('.item-name').value.trim();
+            const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+            const unitPrice = parseFloat(row.querySelector('.item-unit-price').value) || 0;
+            return { name, quantity, unit_price: unitPrice };
+        }).filter(item => item.name && item.quantity > 0);
+    }
+
+    function recalcManualTotal() {
+        const total = getManualItems().reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+        document.getElementById('f-total').value = total ? total.toFixed(2) : '';
+    }
+
+    document.getElementById('addManualItem').addEventListener('click', addManualItemRow);
 
     document.getElementById('submitManual').addEventListener('click', async () => {
         const btn = document.getElementById('submitManual');
@@ -584,12 +856,33 @@
         const vendor     = document.getElementById('f-vendor').value.trim();
         const date       = document.getElementById('f-date').value;
         const total      = parseFloat(document.getElementById('f-total').value);
-        const confidence = parseInt(document.getElementById('f-confidence').value) || null;
-        const itemsRaw   = document.getElementById('f-items').value;
-        const items      = parseItems(itemsRaw);
+        const category   = document.getElementById('f-category').value;
+        const items      = getManualItems();
 
-        if (!vendor && !total) {
-            statusEl.textContent = 'Please fill in at least vendor or total.';
+        if (!vendor) {
+            statusEl.textContent = 'Please enter the vendor name.';
+            statusEl.className = 'form-status error';
+            statusEl.style.display = 'block';
+            return;
+        }
+
+        if (!date) {
+            statusEl.textContent = 'Please choose the receipt date.';
+            statusEl.className = 'form-status error';
+            statusEl.style.display = 'block';
+            return;
+        }
+
+        if (!category) {
+            statusEl.textContent = 'Please select a category.';
+            statusEl.className = 'form-status error';
+            statusEl.style.display = 'block';
+            document.getElementById('f-category').focus();
+            return;
+        }
+
+        if (items.length === 0 || !total) {
+            statusEl.textContent = 'Please add at least one item with quantity and unit price.';
             statusEl.className = 'form-status error';
             statusEl.style.display = 'block';
             return;
@@ -605,7 +898,7 @@
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ vendor, date, total: isNaN(total) ? null : total, items, confidence })
+                body: JSON.stringify({ vendor, date, total: isNaN(total) ? null : total, category, items })
             });
             const data = await res.json();
 
