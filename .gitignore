@@ -3,7 +3,5 @@ __pycache__/
 *.pyc
 .env
 uploads/
-*.jpg
-*.jpeg
-*.png
 .DS_Store
+.claude/

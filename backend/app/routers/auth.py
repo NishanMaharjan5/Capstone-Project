@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from jose import jwt
 from passlib.context import CryptContext
 from app.db.connection import users_collection
-from app.schemas.auth_schema import RegisterRequest, LoginRequest, TokenResponse
+from app.schemas.auth_schema import RegisterRequest, LoginRequest, TokenResponse, GoogleRegisterRequest
 import os
 import random
 import smtplib
@@ -15,6 +15,8 @@ from google.auth.transport import requests as google_requests
 
 router = APIRouter()
 
+# FIXME: the fallback default is a known public string — tokens are forgeable if
+# SECRET_KEY isn't actually set via env in any deployed environment.
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123changemelater")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
@@ -137,6 +139,39 @@ async def google_login(body: GoogleLoginRequest):
         name    = user.get("name", name)
 
     token = create_token(user_id, email)
+    return TokenResponse(access_token=token, name=name)
+
+
+@router.post("/google-register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def google_register(body: GoogleRegisterRequest):
+    try:
+        id_info = id_token.verify_oauth2_token(
+            body.credential,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID
+        )
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+
+    email = id_info["email"]
+
+    existing = await users_collection.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="An account with this email already exists")
+
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Please enter a display name")
+
+    user_doc = {
+        "name": name,
+        "email": email,
+        "password": None,
+        "auth_provider": "google",
+        "created_at": datetime.utcnow().isoformat()
+    }
+    result = await users_collection.insert_one(user_doc)
+    token = create_token(str(result.inserted_id), email)
     return TokenResponse(access_token=token, name=name)
 
 

@@ -1,10 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.routers.receipt import router as receipts_router
 from app.routers.auth import router as auth_router
 import os
 from app.db.connection import db
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serves the built React app, falling back to index.html for
+    client-side routes (e.g. /history, /login) on a hard refresh."""
+
+    async def get_response(self, path, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as ex:
+            if ex.status_code == 404:
+                return await super().get_response("index.html", scope)
+            raise ex
 
 os.makedirs("uploads", exist_ok=True)
 
@@ -24,7 +38,14 @@ async def startup():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "http://127.0.0.1:5500", "null"],
+    allow_origins=[
+        "*",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "null"
+    ],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -38,7 +59,7 @@ async def health():
     return {"status": "healthy", "service": "receipt-analyzer"}
 
 # Mount MUST be last
-app.mount("/", StaticFiles(directory="../frontend", html=True), name="frontend")
+app.mount("/", SPAStaticFiles(directory="../frontend/dist", html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn

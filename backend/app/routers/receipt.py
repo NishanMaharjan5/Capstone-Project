@@ -15,6 +15,7 @@ router = APIRouter()
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# FIXME: same known-public fallback as app/routers/auth.py — must be set via env in production.
 SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123changemelater")
 ALGORITHM = "HS256"
 
