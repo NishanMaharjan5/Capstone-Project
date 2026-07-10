@@ -2,11 +2,14 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 from bson import ObjectId
+import asyncio
 import os
+import re
 import shutil
 from datetime import datetime
 from app.ocr.extractor import receipt_extractor
-from app.db.connection import receipts_collection
+from app.db.connection import receipts_collection, budgets_collection
+from app.services.analytics_service import build_analytics
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
@@ -73,6 +76,21 @@ def normalize_items(items: List[ReceiptItem]) -> List[dict]:
     return normalized
 
 
+def normalize_date(date_str: Optional[str]) -> Optional[str]:
+    """Store every receipt date as ISO YYYY-MM-DD. OCR-extracted dates come in
+    as DD/MM/YYYY (see app/ocr/extractor.py's _extract_date); manual entries
+    already arrive as YYYY-MM-DD from the HTML date input."""
+    if not date_str:
+        return date_str
+
+    match = re.fullmatch(r'(\d{2})/(\d{2})/(\d{4})', date_str.strip())
+    if match:
+        day, month, year = match.groups()
+        return f"{year}-{month}-{day}"
+
+    return date_str
+
+
 def require_category(category: Optional[str]) -> str:
     if not category or not category.strip():
         raise HTTPException(status_code=400, detail="Category is required")
@@ -107,12 +125,16 @@ async def upload_receipt(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
     try:
-        text_lines = receipt_extractor.extract_text(file_path)
+        # extract_text/extract_fields are synchronous and CPU-heavy (EasyOCR runs
+        # on CPU) — run them in a worker thread so they don't block the event
+        # loop and freeze every other request (History, Analytics, etc.) while
+        # a receipt is being analyzed.
+        text_lines = await asyncio.to_thread(receipt_extractor.extract_text, file_path)
 
         if not text_lines:
             raise HTTPException(status_code=400, detail="No text detected in image")
 
-        extracted_data = receipt_extractor.extract_fields(text_lines)
+        extracted_data = await asyncio.to_thread(receipt_extractor.extract_fields, text_lines)
 
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -144,7 +166,7 @@ async def save_receipt(
         "user_id": current_user["sub"],
         "filename": None,
         "vendor": body.vendor,
-        "date": body.date,
+        "date": normalize_date(body.date),
         "total": body.total,
         "category": require_category(body.category),
         "items": normalize_items(body.items),
@@ -171,7 +193,7 @@ async def add_manual_receipt(
         "user_id": current_user["sub"],
         "filename": None,
         "vendor": body.vendor.strip(),
-        "date": body.date,
+        "date": normalize_date(body.date),
         "total": total,
         "category": require_category(body.category),
         "items": normalized_items,
@@ -192,6 +214,17 @@ async def get_receipts(current_user: dict = Depends(get_current_user)):
     for r in receipts:
         r["_id"] = str(r["_id"])
     return {"success": True, "receipts": receipts}
+
+
+@router.get("/analytics")
+async def get_analytics(current_user: dict = Depends(get_current_user)):
+    receipts = await receipts_collection.find(
+        {"user_id": current_user["sub"]}
+    ).to_list(1000)
+    for r in receipts:
+        r["_id"] = str(r["_id"])
+    budgets = await budgets_collection.find({"user_id": current_user["sub"]}).to_list(100)
+    return {"success": True, "analytics": build_analytics(receipts, budgets)}
 
 
 @router.delete("/{receipt_id}")

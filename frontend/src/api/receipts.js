@@ -4,6 +4,10 @@ export async function getReceipts() {
   return apiRequest('/api/receipts/')
 }
 
+export async function getAnalytics() {
+  return apiRequest('/api/receipts/analytics')
+}
+
 export async function uploadReceipt(imageFile) {
   const formData = new FormData()
   formData.append('image', imageFile)

@@ -1,46 +1,13 @@
 import { useRef, useState } from 'react'
-import { uploadReceipt } from '../api/receipts'
+import { useUpload } from '../receipts/UploadContext'
 
-export default function ReceiptUploader({ onAnalyzed }) {
+export default function ReceiptUploader() {
+  const { selectedFile, previewUrl, isAnalyzing, status, selectFile, clearSelection, analyze } = useUpload()
   const fileInputRef = useRef(null)
-  const [selectedFile, setSelectedFile] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(null)
   const [isDragOver, setIsDragOver] = useState(false)
-  const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [status, setStatus] = useState(null)
-
-  function handleFile(file) {
-    if (!file || !file.type.startsWith('image/')) return
-
-    setSelectedFile(file)
-    setStatus({ type: 'info', message: `${file.name} ready` })
-
-    const reader = new FileReader()
-    reader.onload = () => setPreviewUrl(reader.result)
-    reader.readAsDataURL(file)
-  }
-
-  async function handleAnalyze() {
-    if (!selectedFile) return
-
-    setIsAnalyzing(true)
-    setStatus({ type: 'info', message: 'Analyzing receipt...' })
-
-    try {
-      const data = await uploadReceipt(selectedFile)
-      setStatus({ type: 'success', message: 'Review the extracted data, choose a category, then save or discard.' })
-      onAnalyzed(data)
-    } catch (err) {
-      setStatus({ type: 'error', message: err.message || 'Could not reach server' })
-    } finally {
-      setIsAnalyzing(false)
-    }
-  }
 
   function resetSelection() {
-    setSelectedFile(null)
-    setPreviewUrl(null)
-    setStatus(null)
+    clearSelection()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -58,7 +25,7 @@ export default function ReceiptUploader({ onAnalyzed }) {
         onDrop={(e) => {
           e.preventDefault()
           setIsDragOver(false)
-          handleFile(e.dataTransfer.files?.[0])
+          selectFile(e.dataTransfer.files?.[0])
         }}
       >
         <input
@@ -66,7 +33,7 @@ export default function ReceiptUploader({ onAnalyzed }) {
           type="file"
           accept="image/*"
           className="upload-zone-input"
-          onChange={(e) => handleFile(e.target.files?.[0])}
+          onChange={(e) => selectFile(e.target.files?.[0])}
         />
         <p>Drag and drop an image here, or click to choose a file</p>
       </div>
@@ -84,7 +51,7 @@ export default function ReceiptUploader({ onAnalyzed }) {
           type="button"
           className="primary-button"
           disabled={!selectedFile || isAnalyzing}
-          onClick={handleAnalyze}
+          onClick={analyze}
         >
           {isAnalyzing ? 'Analyzing...' : 'Analyze Receipt'}
         </button>

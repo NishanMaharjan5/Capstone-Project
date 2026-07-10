@@ -86,8 +86,24 @@ class ReceiptExtractor:
             return True
         return False
 
+    # ── Sanity bound: a receipt total/line-item price is never absurdly large.
+    # Prevents a mis-parsed phone number / order ID / invoice number from ever
+    # being mistaken for a real amount, however it was produced. ──
+    MAX_PLAUSIBLE_AMOUNT = 10_000_000
+
+    def _is_plausible_amount(self, value: float) -> bool:
+        return 0 < value <= self.MAX_PLAUSIBLE_AMOUNT
+
     # ── Normalize line for price extraction ──
     def _normalize_prices(self, text: str) -> str:
+        # Collapse period-grouped thousands, e.g. "1.160.00" -> "1160.00",
+        # "19.298.81" -> "19298.81" (some receipts use "." instead of "," to
+        # group thousands, which otherwise reads as multiple decimal points).
+        text = re.sub(
+            r'\b\d{1,3}(?:\.\d{3})+\.\d{2}\b',
+            lambda m: m.group().replace('.', '', m.group().count('.') - 1),
+            text
+        )
         text = re.sub(r'\b(\d+),(\d{2})\b', r'\1.\2', text)
         text = re.sub(r'(?<!\.)\b(\d+)\s(\d{2})\b', r'\1.\2', text)
         return text
@@ -103,7 +119,7 @@ class ReceiptExtractor:
         for m in self._number_matches(text):
             try:
                 v = float(m.group().replace(',', ''))
-                if v > 0:
+                if self._is_plausible_amount(v):
                     prices.append(v)
             except:
                 pass
@@ -115,7 +131,8 @@ class ReceiptExtractor:
         if not matches:
             return None
         try:
-            return float(matches[-1].group().replace(',', ''))
+            v = float(matches[-1].group().replace(',', ''))
+            return v if self._is_plausible_amount(v) else None
         except:
             return None
 
@@ -144,6 +161,9 @@ class ReceiptExtractor:
         joined = " ".join(lines[:25])
         joined = re.sub(r'(\d{4})-l(\d)', r'\1-1\2', joined)
         joined = re.sub(r'(\d{4})\.l(\d)', r'\1.1\2', joined)
+        # Collapse a stray OCR period splitting a 4-digit year, e.g.
+        # "202.6-07-03" -> "2026-07-03".
+        joined = re.sub(r'\b(\d{3})\.(\d)(?=[\-\.])', r'\1\2', joined)
 
         months = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
                   "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
@@ -309,14 +329,30 @@ class ReceiptExtractor:
 
         return candidates[0] if candidates else "Unknown"
 
+    # ── True numeric tokens, plus tokens that are almost certainly a numeric
+    # column with one leading digit misread as a letter by OCR (e.g. "Z90.00"
+    # from "290.00", "S0.00" from "50.00"). Only trips on tokens that already
+    # look like "<1 letter><digits>.<2 digits>" so real name words survive. ──
+    def _looks_like_numeric_token(self, token: str) -> bool:
+        if re.fullmatch(r'[\d,]+(\.\d{1,2})?', token):
+            return True
+        return bool(re.fullmatch(r'[A-Za-z][\d,]{1,}\.\d{1,2}', token))
+
     # ── Item name cleaner — works on ORIGINAL line ──
     def _clean_item_name(self, text: str) -> str:
-        cleaned = text.strip()
+        cleaned = text.strip().replace('_', ' ')
 
         # Remove trailing numeric table columns: qty/rate/discount/amount.
         matches = self._number_matches(cleaned)
         if matches:
             cleaned = cleaned[:matches[-min(len(matches), 4)].start()].strip()
+
+        # Catch a trailing price/qty column _number_matches missed because a
+        # leading digit was OCR-misread as a letter.
+        tokens = cleaned.split()
+        while tokens and self._looks_like_numeric_token(tokens[-1]):
+            tokens.pop()
+        cleaned = " ".join(tokens)
 
         tokens = cleaned.split()
         # Remove leading SINo / HS Code numeric columns.
@@ -338,7 +374,7 @@ class ReceiptExtractor:
         return cleaned
 
     def _clean_item_fragment(self, text: str) -> str:
-        cleaned = text.strip()
+        cleaned = text.strip().replace('_', ' ')
         cleaned = re.sub(r'[^\w\s\-\/]', '', cleaned).strip()
         cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         if len(cleaned) < 2 or not self._has_letters(cleaned):

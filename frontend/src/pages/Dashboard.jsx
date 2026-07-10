@@ -1,62 +1,38 @@
-import { useState } from 'react'
+import { useAuth } from '../auth/AuthContext'
+import DashboardInsights from '../components/DashboardInsights'
 import ExtractedReceiptReview from '../components/ExtractedReceiptReview'
 import ManualReceiptForm from '../components/ManualReceiptForm'
 import ReceiptUploader from '../components/ReceiptUploader'
 import RecentReceipts from '../components/RecentReceipts'
-import { saveReceipt } from '../api/receipts'
-import { normalizeItemsForSave } from '../utils/receiptMath'
+import { useUpload } from '../receipts/UploadContext'
+
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
 
 export default function Dashboard() {
-  const [draft, setDraft] = useState(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  async function handleSave(category) {
-    const extracted = draft.extracted_data || {}
-    setIsSaving(true)
-    setSaveError('')
-
-    try {
-      await saveReceipt({
-        vendor: extracted.vendor || null,
-        date: extracted.date || null,
-        total: extracted.total == null ? null : Number(extracted.total),
-        category,
-        items: normalizeItemsForSave(extracted.items),
-        verified: Boolean(extracted.verified),
-        raw_text: draft.raw_text || [],
-      })
-      setDraft(null)
-      setRefreshKey((k) => k + 1)
-    } catch (err) {
-      setSaveError(err.message || 'Failed to save receipt')
-    } finally {
-      setIsSaving(false)
-    }
-  }
+  const { user } = useAuth()
+  const { draft, refreshKey, bumpRefresh } = useUpload()
+  const firstName = (user?.name || 'there').split(' ')[0]
 
   return (
     <section className="page-view">
       <div className="section-heading">
         <p className="eyebrow">Dashboard</p>
-        <h1>Upload a receipt</h1>
-        <p>Analyze a receipt image, review the extracted data, then save or discard it.</p>
+        <h1>
+          {getGreeting()}, {firstName}
+        </h1>
+        <p>Here's how your spending is looking.</p>
       </div>
 
-      {!draft ? (
-        <ReceiptUploader onAnalyzed={setDraft} />
-      ) : (
-        <ExtractedReceiptReview
-          draft={draft}
-          onSave={handleSave}
-          onDiscard={() => setDraft(null)}
-          isSaving={isSaving}
-          saveError={saveError}
-        />
-      )}
+      <DashboardInsights refreshKey={refreshKey} />
 
-      <ManualReceiptForm onSaved={() => setRefreshKey((k) => k + 1)} />
+      {!draft ? <ReceiptUploader /> : <ExtractedReceiptReview />}
+
+      <ManualReceiptForm onSaved={bumpRefresh} />
 
       <RecentReceipts refreshKey={refreshKey} />
     </section>

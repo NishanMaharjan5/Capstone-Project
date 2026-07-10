@@ -13,3 +13,4 @@ db = client[DATABASE_NAME]
 # Collections
 receipts_collection = db["receipts"]
 users_collection = db["users"]
+budgets_collection = db["budgets"]

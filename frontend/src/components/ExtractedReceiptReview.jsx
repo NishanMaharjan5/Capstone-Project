@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { CATEGORIES } from '../constants/categories'
+import { useUpload } from '../receipts/UploadContext'
 import { computeLineTotal, formatMoney } from '../utils/receiptMath'
 
-export default function ExtractedReceiptReview({ draft, onSave, onDiscard, isSaving, saveError }) {
+export default function ExtractedReceiptReview() {
+  const { draft, isSaving, saveError, saveDraft, discardDraft } = useUpload()
   const [category, setCategory] = useState('')
   const [showRaw, setShowRaw] = useState(false)
   const [categoryError, setCategoryError] = useState('')
@@ -16,7 +18,7 @@ export default function ExtractedReceiptReview({ draft, onSave, onDiscard, isSav
       return
     }
     setCategoryError('')
-    onSave(category)
+    saveDraft(category)
   }
 
   return (
@@ -99,7 +101,7 @@ export default function ExtractedReceiptReview({ draft, onSave, onDiscard, isSav
         <button type="button" className="primary-button" onClick={handleSave} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save Receipt'}
         </button>
-        <button type="button" className="secondary-button" onClick={onDiscard} disabled={isSaving}>
+        <button type="button" className="secondary-button" onClick={discardDraft} disabled={isSaving}>
           Discard Draft
         </button>
       </div>

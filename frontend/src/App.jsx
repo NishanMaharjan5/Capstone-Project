@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import ProtectedRoute from './auth/ProtectedRoute'
@@ -7,9 +8,15 @@ import ForgotPassword from './pages/ForgotPassword'
 import History from './pages/History'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import { UploadProvider, useUpload } from './receipts/UploadContext'
+
+// Lazy-loaded: pulls in Plotly, which is large — no reason to ship it on every route.
+const Analytics = lazy(() => import('./pages/Analytics'))
+const Budgets = lazy(() => import('./pages/Budgets'))
 
 function AppLayout({ children }) {
   const { isAuthenticated, logout, user } = useAuth()
+  const { isAnalyzing, draft } = useUpload()
 
   return (
     <div className="app-shell">
@@ -22,6 +29,15 @@ function AppLayout({ children }) {
             <>
               <Link to="/">Dashboard</Link>
               <Link to="/history">History</Link>
+              <Link to="/analytics">Analytics</Link>
+              <Link to="/budgets">Budgets</Link>
+              {isAnalyzing ? (
+                <span className="user-chip">Analyzing receipt...</span>
+              ) : draft ? (
+                <Link to="/" className="user-chip">
+                  Receipt ready to review
+                </Link>
+              ) : null}
               <UserMenu user={user} onLogout={logout} />
             </>
           ) : (
@@ -47,6 +63,22 @@ function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/history" element={<History />} />
+          <Route
+            path="/analytics"
+            element={
+              <Suspense fallback={<p>Loading analytics...</p>}>
+                <Analytics />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/budgets"
+            element={
+              <Suspense fallback={<p>Loading budgets...</p>}>
+                <Budgets />
+              </Suspense>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -58,7 +90,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <UploadProvider>
+          <AppRoutes />
+        </UploadProvider>
       </AuthProvider>
     </BrowserRouter>
   )

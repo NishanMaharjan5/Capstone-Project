@@ -32,8 +32,8 @@ export default function RecentReceipts({ refreshKey }) {
   if (error) return <div className="alert error">{error}</div>
 
   return (
-    <Link to="/history" className="panel recent-receipts-link">
-      <h2>Recent receipts (view history →)</h2>
+    <div className="panel">
+      <h2>Recent receipts</h2>
       {receipts.length === 0 ? (
         <p>No receipts yet.</p>
       ) : (
@@ -54,6 +54,9 @@ export default function RecentReceipts({ refreshKey }) {
           </div>
         </>
       )}
-    </Link>
+      <Link to="/history" className="link-button">
+        View history →
+      </Link>
+    </div>
   )
 }
