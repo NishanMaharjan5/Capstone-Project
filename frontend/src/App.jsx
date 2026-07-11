@@ -9,10 +9,13 @@ import History from './pages/History'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import { UploadProvider, useUpload } from './receipts/UploadContext'
+import { TripProvider } from './trips/TripContext'
 
 // Lazy-loaded: pulls in Plotly, which is large — no reason to ship it on every route.
 const Analytics = lazy(() => import('./pages/Analytics'))
 const Budgets = lazy(() => import('./pages/Budgets'))
+const Trips = lazy(() => import('./pages/Trips'))
+const TripDetail = lazy(() => import('./pages/TripDetail'))
 
 function AppLayout({ children }) {
   const { isAuthenticated, logout, user } = useAuth()
@@ -31,6 +34,7 @@ function AppLayout({ children }) {
               <Link to="/history">History</Link>
               <Link to="/analytics">Analytics</Link>
               <Link to="/budgets">Budgets</Link>
+              <Link to="/trips">Trips</Link>
               {isAnalyzing ? (
                 <span className="user-chip">Analyzing receipt...</span>
               ) : draft ? (
@@ -79,6 +83,22 @@ function AppRoutes() {
               </Suspense>
             }
           />
+          <Route
+            path="/trips"
+            element={
+              <Suspense fallback={<p>Loading trips...</p>}>
+                <Trips />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/trips/:tripId"
+            element={
+              <Suspense fallback={<p>Loading trip...</p>}>
+                <TripDetail />
+              </Suspense>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -91,7 +111,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <UploadProvider>
-          <AppRoutes />
+          <TripProvider>
+            <AppRoutes />
+          </TripProvider>
         </UploadProvider>
       </AuthProvider>
     </BrowserRouter>

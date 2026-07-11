@@ -1,16 +1,21 @@
 import { useState } from 'react'
 import { CATEGORIES } from '../constants/categories'
+import { TRIP_CATEGORIES } from '../constants/tripCategories'
 import { useUpload } from '../receipts/UploadContext'
+import { useTrip } from '../trips/TripContext'
 import { computeLineTotal, formatMoney } from '../utils/receiptMath'
 
 export default function ExtractedReceiptReview() {
   const { draft, isSaving, saveError, saveDraft, discardDraft } = useUpload()
+  const { activeTrip } = useTrip()
   const [category, setCategory] = useState('')
   const [showRaw, setShowRaw] = useState(false)
   const [categoryError, setCategoryError] = useState('')
+  const [addToTrip, setAddToTrip] = useState(false)
 
   const extracted = draft.extracted_data || {}
   const items = Array.isArray(extracted.items) ? extracted.items : []
+  const categoryOptions = activeTrip && addToTrip ? TRIP_CATEGORIES : CATEGORIES
 
   function handleSave() {
     if (!category) {
@@ -18,7 +23,7 @@ export default function ExtractedReceiptReview() {
       return
     }
     setCategoryError('')
-    saveDraft(category)
+    saveDraft(category, activeTrip && addToTrip ? activeTrip._id : null)
   }
 
   return (
@@ -46,6 +51,20 @@ export default function ExtractedReceiptReview() {
         </div>
       </div>
 
+      {activeTrip ? (
+        <label className="trip-tag-toggle">
+          <input
+            type="checkbox"
+            checked={addToTrip}
+            onChange={(e) => {
+              setAddToTrip(e.target.checked)
+              setCategory('')
+            }}
+          />
+          Add to {activeTrip.name}?
+        </label>
+      ) : null}
+
       <label>
         Category
         <select
@@ -58,7 +77,7 @@ export default function ExtractedReceiptReview() {
           <option value="" disabled>
             Select category
           </option>
-          {CATEGORIES.map((c) => (
+          {categoryOptions.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>

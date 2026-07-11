@@ -2,19 +2,22 @@ import { useEffect, useState } from 'react'
 import BudgetCategoryRow from '../components/BudgetCategoryRow'
 import BudgetComparisonChart from '../components/BudgetComparisonChart'
 import DecisionSupportBubble from '../components/DecisionSupportBubble'
-import { clearBudget, getBudgetOverview, setBudget } from '../api/budgets'
+import MonthlyBudgetCard from '../components/MonthlyBudgetCard'
+import { clearBudget, getBudgetOverview, getMonthlyBudget, setBudget, setMonthlyBudget } from '../api/budgets'
 import { formatMoney } from '../utils/receiptMath'
 
 export default function Budgets() {
   const [overview, setOverview] = useState(null)
+  const [monthlyAmount, setMonthlyAmount] = useState(null)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
   async function load() {
     setError('')
     try {
-      const data = await getBudgetOverview()
-      setOverview(data.budget_overview)
+      const [overviewData, monthlyData] = await Promise.all([getBudgetOverview(), getMonthlyBudget()])
+      setOverview(overviewData.budget_overview)
+      setMonthlyAmount(monthlyData.amount)
     } catch (err) {
       setError(err.message || 'Could not load budgets')
     } finally {
@@ -25,6 +28,11 @@ export default function Budgets() {
   useEffect(() => {
     load()
   }, [])
+
+  async function handleSaveMonthly(amount) {
+    await setMonthlyBudget(amount)
+    await load()
+  }
 
   async function handleSave(category, amount) {
     await setBudget(category, amount)
@@ -41,7 +49,7 @@ export default function Budgets() {
       <div className="section-heading">
         <p className="eyebrow">Budgets</p>
         <h1>Budget management</h1>
-        <p>Set a monthly budget per category and track how this month's spending measures up.</p>
+        <p>Set a monthly budget, then divide it across categories, and track how this month's spending measures up.</p>
       </div>
 
       {error ? <div className="alert error">{error}</div> : null}
@@ -50,12 +58,15 @@ export default function Budgets() {
         <p>Loading budgets...</p>
       ) : overview ? (
         <>
+          <MonthlyBudgetCard
+            amount={monthlyAmount}
+            allocated={overview.summary.total_budgeted}
+            unallocated={overview.summary.unallocated}
+            onSave={handleSaveMonthly}
+          />
+
           <div className="panel">
             <div className="stat-bar">
-              <div className="stat-tile">
-                <span className="field-label">Total monthly budget</span>
-                <strong>{formatMoney(overview.summary.total_budgeted)}</strong>
-              </div>
               <div className="stat-tile">
                 <span className="field-label">Spent against budget</span>
                 <strong>{formatMoney(overview.summary.total_spent)}</strong>
@@ -65,6 +76,10 @@ export default function Budgets() {
                 <strong>
                   {overview.summary.over_count} over · {overview.summary.warning_count} near limit
                 </strong>
+              </div>
+              <div className="stat-tile">
+                <span className="field-label">Trips this month</span>
+                <strong>{formatMoney(overview.summary.trip_spent_this_month)}</strong>
               </div>
             </div>
           </div>

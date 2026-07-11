@@ -8,19 +8,16 @@ import re
 import shutil
 from datetime import datetime
 from app.ocr.extractor import receipt_extractor
-from app.db.connection import receipts_collection, budgets_collection
+from app.db.connection import receipts_collection, trips_collection
 from app.services.analytics_service import build_analytics
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from app.security import SECRET_KEY, ALGORITHM
 
 router = APIRouter()
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-# FIXME: same known-public fallback as app/routers/auth.py — must be set via env in production.
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123changemelater")
-ALGORITHM = "HS256"
 
 bearer_scheme = HTTPBearer()
 
@@ -50,6 +47,7 @@ class SaveReceiptRequest(BaseModel):
     items: List[ReceiptItem] = Field(default_factory=list)
     verified: Optional[bool] = False
     raw_text: List[str] = Field(default_factory=list)
+    trip_id: Optional[str] = None
 
 class ManualReceiptRequest(BaseModel):
     vendor: Optional[str] = None
@@ -57,6 +55,7 @@ class ManualReceiptRequest(BaseModel):
     total: Optional[float] = None
     category: Optional[str] = None
     items: List[ReceiptItem] = Field(default_factory=list)
+    trip_id: Optional[str] = None
 
 
 def normalize_items(items: List[ReceiptItem]) -> List[dict]:
@@ -104,6 +103,25 @@ def require_manual_receipt(body: ManualReceiptRequest) -> None:
         raise HTTPException(status_code=400, detail="Receipt date is required")
     if not body.items:
         raise HTTPException(status_code=400, detail="At least one item is required")
+
+
+async def validate_trip_tag(trip_id: Optional[str], user_id: str) -> Optional[str]:
+    """Confirm a receipt being tagged to a trip actually belongs to this user and
+    is still active — an ended trip can't accept further receipts."""
+    if not trip_id:
+        return None
+
+    try:
+        obj_id = ObjectId(trip_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid trip ID")
+
+    trip = await trips_collection.find_one({"_id": obj_id, "user_id": user_id})
+    if not trip:
+        raise HTTPException(status_code=404, detail="Trip not found")
+    if trip["status"] != "active":
+        raise HTTPException(status_code=400, detail="This trip has ended and can no longer accept receipts")
+    return trip_id
 
 
 @router.post("/upload")
@@ -173,6 +191,7 @@ async def save_receipt(
         "verified": body.verified,
         "raw_text": body.raw_text,
         "source": "ocr",
+        "trip_id": await validate_trip_tag(body.trip_id, current_user["sub"]),
         "created_at": datetime.now().isoformat()
     }
     result = await receipts_collection.insert_one(receipt_doc)
@@ -199,6 +218,7 @@ async def add_manual_receipt(
         "items": normalized_items,
         "verified": True,
         "source": "manual",
+        "trip_id": await validate_trip_tag(body.trip_id, current_user["sub"]),
         "created_at": datetime.now().isoformat()
     }
     result = await receipts_collection.insert_one(receipt_doc)
@@ -223,8 +243,7 @@ async def get_analytics(current_user: dict = Depends(get_current_user)):
     ).to_list(1000)
     for r in receipts:
         r["_id"] = str(r["_id"])
-    budgets = await budgets_collection.find({"user_id": current_user["sub"]}).to_list(100)
-    return {"success": True, "analytics": build_analytics(receipts, budgets)}
+    return {"success": True, "analytics": build_analytics(receipts)}
 
 
 @router.delete("/{receipt_id}")

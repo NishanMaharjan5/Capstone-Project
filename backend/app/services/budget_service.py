@@ -68,6 +68,19 @@ def _current_month_totals_by_category(receipts: List[dict], now: Optional[dateti
     return month_totals_by_category(receipts, now.strftime("%Y-%m"))
 
 
+def split_trip_receipts(receipts: List[dict]) -> tuple:
+    """Trip-tagged receipts are tracked against that trip's own budget, not the
+    main category budgets — keep them out of every budget/decision calculation."""
+    non_trip = [r for r in receipts if not r.get("trip_id")]
+    trip = [r for r in receipts if r.get("trip_id")]
+    return non_trip, trip
+
+
+def current_month_total(receipts: List[dict], now: Optional[datetime] = None) -> float:
+    totals = _current_month_totals_by_category(receipts, now)
+    return round(sum(totals.values()), 2)
+
+
 def build_budget_insights(current_cat_totals: Dict[str, float], budgets: List[dict]) -> List[dict]:
     """Shared with the /api/budgets overview — same thresholds, single source of truth."""
     limits = {b["category"]: b.get("monthly_limit") for b in budgets}
@@ -113,7 +126,12 @@ def build_budget_insights(current_cat_totals: Dict[str, float], budgets: List[di
     return insights
 
 
-def build_budget_overview(receipts: List[dict], budgets: List[dict], now: Optional[datetime] = None) -> Dict[str, Any]:
+def build_budget_overview(
+    receipts: List[dict],
+    budgets: List[dict],
+    total_monthly_budget: Optional[float] = None,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
     now = now or datetime.now()
     spent_by_category = _current_month_totals_by_category(receipts, now)
     limits = {b["category"]: b.get("monthly_limit") for b in budgets}
@@ -135,11 +153,14 @@ def build_budget_overview(receipts: List[dict], budgets: List[dict], now: Option
         })
 
     budgeted_rows = [r for r in rows if r["limit"] is not None]
+    total_budgeted = round(sum(r["limit"] for r in budgeted_rows), 2) if budgeted_rows else 0.0
     summary = {
-        "total_budgeted": round(sum(r["limit"] for r in budgeted_rows), 2) if budgeted_rows else 0.0,
+        "total_budgeted": total_budgeted,
         "total_spent": round(sum(r["spent"] for r in budgeted_rows), 2) if budgeted_rows else 0.0,
         "over_count": sum(1 for r in rows if r["status"] == "over"),
         "warning_count": sum(1 for r in rows if r["status"] == "warning"),
+        "total_monthly_budget": total_monthly_budget,
+        "unallocated": round(total_monthly_budget - total_budgeted, 2) if total_monthly_budget else None,
     }
 
     return {

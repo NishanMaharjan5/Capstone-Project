@@ -7,7 +7,6 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from app.constants import CATEGORY_COLORS, DEFAULT_CATEGORY_COLOR
-from app.services import budget_service
 
 TREND_COLOR = "#2d6ef5"  # app's --accent
 CONTEXT_COLOR = "#c3c2b7"  # dataviz skill's neutral gray, for "last month"/reference lines
@@ -57,12 +56,11 @@ def _empty_analytics() -> Dict[str, Any]:
             "category_comparison": None,
             "pace_projection": None,
             "day_of_week": None,
-            "budget_vs_actual": None,
         },
     }
 
 
-def build_analytics(receipts: List[dict], budgets: Optional[List[dict]] = None) -> Dict[str, Any]:
+def build_analytics(receipts: List[dict]) -> Dict[str, Any]:
     if not receipts:
         return _empty_analytics()
 
@@ -89,7 +87,6 @@ def build_analytics(receipts: List[dict], budgets: Optional[List[dict]] = None) 
     by_category_comparison = _build_category_comparison(current_df, last_df)
     by_day_of_week = _build_day_of_week(df)
     pace_series = _build_pace_series(current_df, now)
-    budget_figure = budget_service.build_budget_overview(receipts, budgets)["figure"] if budgets else None
 
     return {
         "summary": _build_summary(df, current_month),
@@ -98,14 +95,13 @@ def build_analytics(receipts: List[dict], budgets: Optional[List[dict]] = None) 
         "top_vendors": _build_top_vendors(df),
         "by_month": by_month,
         "by_day_of_week": by_day_of_week,
-        "insights": _build_insights(df, current_df, last_df, by_day_of_week, now, budgets),
+        "insights": _build_insights(df, current_df, last_df, by_day_of_week, now),
         "figures": {
             "category": _category_figure(by_category),
             "monthly_trend": _monthly_trend_figure(by_month),
             "category_comparison": _category_comparison_figure(by_category_comparison),
             "pace_projection": _pace_projection_figure(pace_series),
             "day_of_week": _day_of_week_figure(by_day_of_week),
-            "budget_vs_actual": budget_figure,
         },
     }
 
@@ -218,21 +214,14 @@ def _build_insights(
     last_df: pd.DataFrame,
     by_day_of_week: List[dict],
     now: datetime,
-    budgets: Optional[List[dict]] = None,
 ) -> List[dict]:
+    """Pure, descriptive stats about what already happened — category moves,
+    habits, frequency. Forward-looking "you're on track to..." projections and
+    budget-limit warnings live in decision_engine_service.py's Decision Support
+    instead, which is where prescriptive framing belongs."""
     insights: List[dict] = []
     if df.empty:
         return insights
-
-    # Budget alerts are prepended, not appended, so they outrank the rules below
-    # in DecisionSupportWidget's top-3 slice — going over budget is more
-    # actionable than a day-of-week habit or vendor-frequency nudge.
-    if budgets:
-        current_cat_totals = (
-            current_df.groupby("category")["total"].sum().to_dict() if not current_df.empty else {}
-        )
-        budget_insights = budget_service.build_budget_insights(current_cat_totals, budgets)
-        insights = budget_insights + insights
 
     if not current_df.empty and not last_df.empty:
         current_cat = current_df.groupby("category")["total"].sum()
@@ -277,24 +266,6 @@ def _build_insights(
                 ),
                 "chart": "category",
             })
-
-    days_elapsed = now.day
-    days_in_month = calendar.monthrange(now.year, now.month)[1]
-    spent_so_far = float(current_df["total"].sum())
-    if days_elapsed > 0 and spent_so_far > 0:
-        projected = budget_service.project_month_end(spent_so_far, days_elapsed, days_in_month)
-        last_month_total = float(last_df["total"].sum())
-        message = f"At your current pace, you're on track to spend ~Rs. {projected:,.0f} this month."
-        if last_month_total > 0 and projected > last_month_total * 1.1:
-            delta_pct = (projected - last_month_total) / last_month_total * 100
-            message += f" That's {delta_pct:.0f}% more than last month."
-        daily_rate = spent_so_far / days_elapsed
-        detail = (
-            f"You've spent Rs. {spent_so_far:,.2f} over the first {days_elapsed} days of the month, "
-            f"a daily average of Rs. {daily_rate:,.2f}. At that rate, you'd spend about Rs. {projected:,.0f} "
-            f"by the end of the month."
-        )
-        insights.append({"type": "pace_projection", "message": message, "detail": detail, "chart": "pace_projection"})
 
     if not current_df.empty:
         avg_receipt = float(df["total"].mean())

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { CATEGORIES } from '../constants/categories'
+import { TRIP_CATEGORIES } from '../constants/tripCategories'
 import { addManualReceipt } from '../api/receipts'
+import { useTrip } from '../trips/TripContext'
 import { formatMoney } from '../utils/receiptMath'
 
 function emptyRow() {
@@ -18,6 +20,7 @@ function getValidItems(rows) {
 }
 
 export default function ManualReceiptForm({ onSaved }) {
+  const { activeTrip } = useTrip()
   const [isOpen, setIsOpen] = useState(false)
   const [vendor, setVendor] = useState('')
   const [date, setDate] = useState('')
@@ -25,9 +28,11 @@ export default function ManualReceiptForm({ onSaved }) {
   const [rows, setRows] = useState([emptyRow()])
   const [status, setStatus] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [addToTrip, setAddToTrip] = useState(false)
 
   const validItems = getValidItems(rows)
   const total = validItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0)
+  const categoryOptions = activeTrip && addToTrip ? TRIP_CATEGORIES : CATEGORIES
 
   function updateRow(index, field, value) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)))
@@ -42,7 +47,7 @@ export default function ManualReceiptForm({ onSaved }) {
     setDate('')
     setCategory('')
     setRows([emptyRow()])
-    setStatus(null)
+    setAddToTrip(false)
   }
 
   function toggleOpen() {
@@ -81,9 +86,10 @@ export default function ManualReceiptForm({ onSaved }) {
         total,
         category,
         items: validItems,
+        trip_id: activeTrip && addToTrip ? activeTrip._id : null,
       })
-      setStatus({ type: 'success', message: '✓ Receipt saved!' })
       clearForm()
+      setStatus({ type: 'success', message: '✓ Receipt saved!' })
       await onSaved()
     } catch (err) {
       setStatus({ type: 'error', message: err.message || 'Failed to save receipt' })
@@ -108,13 +114,28 @@ export default function ManualReceiptForm({ onSaved }) {
             Date
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </label>
+
+          {activeTrip ? (
+            <label className="trip-tag-toggle">
+              <input
+                type="checkbox"
+                checked={addToTrip}
+                onChange={(e) => {
+                  setAddToTrip(e.target.checked)
+                  setCategory('')
+                }}
+              />
+              Add to {activeTrip.name}?
+            </label>
+          ) : null}
+
           <label>
             Category
             <select value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="" disabled>
                 Select category
               </option>
-              {CATEGORIES.map((c) => (
+              {categoryOptions.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

@@ -12,13 +12,10 @@ from email.mime.multipart import MIMEMultipart
 from pydantic import BaseModel
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from app.security import SECRET_KEY, ALGORITHM
 
 router = APIRouter()
 
-# FIXME: the fallback default is a known public string — tokens are forgeable if
-# SECRET_KEY isn't actually set via env in any deployed environment.
-SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey123changemelater")
-ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

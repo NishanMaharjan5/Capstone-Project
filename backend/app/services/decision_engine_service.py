@@ -13,7 +13,7 @@ SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 def build_suggestions(receipts: List[dict], budgets: List[dict], now: Optional[datetime] = None) -> Dict[str, Any]:
     now = now or datetime.now()
-    overview = budget_service.build_budget_overview(receipts, budgets, now)
+    overview = budget_service.build_budget_overview(receipts, budgets, now=now)
     rows = overview["categories"]
     summary = overview["summary"]
 

@@ -5,6 +5,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.routers.receipt import router as receipts_router
 from app.routers.auth import router as auth_router
 from app.routers.budget import router as budget_router
+from app.routers.trip import router as trip_router
 import os
 from app.db.connection import db
 
@@ -55,6 +56,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(receipts_router, prefix="/api/receipts", tags=["receipts"])
 app.include_router(budget_router, prefix="/api/budgets", tags=["budgets"])
+app.include_router(trip_router, prefix="/api/trips", tags=["trips"])
 
 @app.get("/health")
 async def health():

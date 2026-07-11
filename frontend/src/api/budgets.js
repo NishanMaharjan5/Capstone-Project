@@ -23,3 +23,15 @@ export async function clearBudget(category) {
     body: JSON.stringify({ category }),
   })
 }
+
+export async function getMonthlyBudget() {
+  return apiRequest('/api/budgets/monthly')
+}
+
+export async function setMonthlyBudget(amount) {
+  return apiRequest('/api/budgets/monthly', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount }),
+  })
+}

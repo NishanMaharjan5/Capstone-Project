@@ -54,7 +54,7 @@ export function UploadProvider({ children }) {
     }
   }, [selectedFile])
 
-  async function saveDraft(category) {
+  async function saveDraft(category, tripId) {
     if (!draft) return
     const extracted = draft.extracted_data || {}
     setIsSaving(true)
@@ -69,6 +69,7 @@ export function UploadProvider({ children }) {
         items: normalizeItemsForSave(extracted.items),
         verified: Boolean(extracted.verified),
         raw_text: draft.raw_text || [],
+        trip_id: tripId || null,
       })
       setDraft(null)
       setStatus(null)

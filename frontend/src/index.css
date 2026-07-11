@@ -798,6 +798,72 @@ input:disabled {
   overflow-y: auto;
 }
 
+.trip-tag-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-direction: row;
+  font-weight: 600;
+}
+
+.trip-tag-toggle input {
+  width: auto;
+}
+
+.trip-active-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.trip-active-header h2 {
+  margin: 0 0 4px;
+}
+
+.trip-budget-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.trip-budget-grid label {
+  font-size: 13px;
+}
+
+.trip-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.trip-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.trip-card h3 {
+  margin: 0;
+}
+
+.trip-day-drilldown {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.trip-day-drilldown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
 @media (max-width: 720px) {
   .topbar {
     height: auto;
@@ -836,6 +902,10 @@ input:disabled {
   }
 
   .manual-item-row {
+    grid-template-columns: 1fr;
+  }
+
+  .trip-budget-grid {
     grid-template-columns: 1fr;
   }
 }
