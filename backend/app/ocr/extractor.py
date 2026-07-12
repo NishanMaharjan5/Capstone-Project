@@ -250,6 +250,30 @@ class ReceiptExtractor:
         lower = text.lower()
         return "tax amount" in lower and "taxable" not in lower
 
+    # ── A line that IS the date/time header — must never be treated as a
+    # price candidate. A bare year (e.g. "2026") or a misread time value
+    # (OCR often turns "3:48 PM" into "3,48 PM") is a plausible-looking
+    # number that can otherwise outrank the real total whenever a receipt
+    # has no explicit "total" keyword line. ──
+    def _is_date_line(self, text: str) -> bool:
+        lower = text.lower()
+        if re.search(r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}\b', lower):
+            return True
+        if re.search(r'\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b', text):
+            return True
+        if re.search(r'\b\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\b', text):
+            return True
+        if re.search(r'\b\d{1,2}[:,]\d{2}\s*(am|pm)\b', lower):
+            return True
+        return False
+
+    # ── A standalone currency-prefixed line ("Rs 1,535.00", "NPR 1,500")
+    # is a strong, explicit total signal on minimalist receipts/order slips
+    # that never say "total" at all — worth trusting ahead of the risky
+    # "largest number on the receipt" last resort. ──
+    def _is_currency_total_line(self, text: str) -> bool:
+        return bool(re.match(r'^(rs\.?|npr\.?|nrs\.?)\s*[,:]?\s*\d', text.strip(), re.IGNORECASE))
+
     def _is_header_row(self, text: str) -> bool:
         keywords = ["item", "description", "qty", "quantity", "rate",
                     "amount", "total", "slno", "sl.no", "hs code",
@@ -674,9 +698,20 @@ class ReceiptExtractor:
                         break
 
         if data["total"] == 0:
+            for line in clean_lines:
+                if self._is_date_line(line):
+                    continue
+                if self._is_currency_total_line(line):
+                    prices = self._extract_all_prices(line)
+                    if prices:
+                        data["total"] = max(prices)
+                        print(f"✅ Total (currency-prefixed line): {data['total']}")
+                        break
+
+        if data["total"] == 0:
             all_prices = []
             for line in clean_lines:
-                if not self._is_skip_line(line) and not self._is_garbage_line(line):
+                if not self._is_skip_line(line) and not self._is_garbage_line(line) and not self._is_date_line(line):
                     all_prices.extend(self._extract_all_prices(line))
             if all_prices:
                 data["total"] = max(all_prices)
