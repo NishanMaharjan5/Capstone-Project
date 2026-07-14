@@ -43,6 +43,8 @@ frontend/
 
 **Prerequisites:** Python 3.12+, Node 18.19+ (or 20+), a local MongoDB instance (or an Atlas connection string).
 
+**macOS / Linux**
+
 ```bash
 git clone https://github.com/NishanMaharjan5/Capstone-Project.git receipt-analyzer
 cd receipt-analyzer
@@ -58,6 +60,29 @@ uvicorn main:app --reload --port 8000
 # Frontend (separate terminal)
 cd frontend
 cp .env.example .env
+npm install
+npm run dev
+```
+
+**Windows (PowerShell)**
+
+```powershell
+git clone https://github.com/NishanMaharjan5/Capstone-Project.git receipt-analyzer
+cd receipt-analyzer
+
+# Backend
+cd backend
+copy .env.example .env   # fill in values — see table below
+python -m venv venv      # if "python" isn't recognized, try "py" instead
+.\venv\Scripts\Activate.ps1
+# If that's blocked with a script-execution error, run this once then retry:
+#   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# Frontend (separate terminal)
+cd frontend
+copy .env.example .env
 npm install
 npm run dev
 ```
