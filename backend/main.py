@@ -68,7 +68,7 @@ frontend_dist = "../frontend/dist"
 if os.path.isdir(frontend_dist):
     app.mount("/", SPAStaticFiles(directory=frontend_dist, html=True), name="frontend")
 else:
-    print(f"⚠️  {frontend_dist} not found — skipping frontend mount (fine for local dev, run `npm run build` before deploying)")
+    print(f"Note: {frontend_dist} not found — skipping frontend mount (fine for local dev, run `npm run build` before deploying)")
 
 if __name__ == "__main__":
     import uvicorn
