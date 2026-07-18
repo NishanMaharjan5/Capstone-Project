@@ -62,8 +62,13 @@ app.include_router(trip_router, prefix="/api/trips", tags=["trips"])
 async def health():
     return {"status": "healthy", "service": "receipt-analyzer"}
 
-# Mount MUST be last
-app.mount("/", SPAStaticFiles(directory="../frontend/dist", html=True), name="frontend")
+# Mount MUST be last. Only present after `npm run build` — skip it during
+# local dev where the frontend runs separately via `npm run dev` on :5173.
+frontend_dist = "../frontend/dist"
+if os.path.isdir(frontend_dist):
+    app.mount("/", SPAStaticFiles(directory=frontend_dist, html=True), name="frontend")
+else:
+    print(f"⚠️  {frontend_dist} not found — skipping frontend mount (fine for local dev, run `npm run build` before deploying)")
 
 if __name__ == "__main__":
     import uvicorn
