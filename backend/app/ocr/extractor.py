@@ -104,8 +104,12 @@ class ReceiptExtractor:
             lambda m: m.group().replace('.', '', m.group().count('.') - 1),
             text
         )
-        text = re.sub(r'\b(\d+),(\d{2})\b', r'\1.\2', text)
-        text = re.sub(r'(?<!\.)\b(\d+)\s(\d{2})\b', r'\1.\2', text)
+        # A decimal point already present but with a stray OCR space right
+        # after it, e.g. "180. 00" -> "180.00".
+        text = re.sub(r'\b(\d+)\.\s+(\d{2})\b', r'\1.\2', text)
+        # A comma/period decimal separator with inconsistent OCR spacing
+        # around it — "180,00", "180 ,00" all mean the same thing.
+        text = re.sub(r'(?<!\.)\b(\d+)[,\s]+(\d{2})\b', r'\1.\2', text)
         return text
 
     def _number_matches(self, text: str) -> List[re.Match]:
@@ -168,22 +172,31 @@ class ReceiptExtractor:
         months = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
                   "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
 
+        # "Jul" is the only 3-letter month abbreviation containing an 'l' —
+        # OCR very commonly misreads it as the digit '1' (e.g. "Ju1"), so
+        # tolerate that specific substitution with no ambiguity risk to the
+        # other eleven months.
+        month_pattern = r'(Jan|Feb|Mar|Apr|May|Jun|Ju[l1]|Aug|Sep|Oct|Nov|Dec)'
+        # Date parts are sometimes slash/dash separated (e.g. "05/Jul/2026")
+        # rather than space/comma separated (e.g. "5 Jul, 2026") — accept both.
+        sep = r'[\s,\/\-]+'
+
         # Prefer visible Gregorian month-name dates before numeric Miti dates.
         for m in re.finditer(
-            r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[\s,]+(\d{1,2})[\s,]+(\d{4})\b',
+            month_pattern + r'\w*' + sep + r'(\d{1,2})' + sep + r'(\d{4})\b',
             joined, re.IGNORECASE
         ):
-            mo = months.get(m.group(1)[:3].lower(), 0)
+            mo = months.get(re.sub(r'1', 'l', m.group(1)[:3].lower()), 0)
             d, y = int(m.group(2)), int(m.group(3))
             if self._is_valid_date(d, mo, y):
                 return f"{d:02d}/{mo:02d}/{y}"
 
         for m in re.finditer(
-            r'\b(\d{1,2})[\s,]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[\s,]+(\d{4})\b',
+            r'\b(\d{1,2})' + sep + month_pattern + r'\w*' + sep + r'(\d{4})\b',
             joined, re.IGNORECASE
         ):
             d = int(m.group(1))
-            mo = months.get(m.group(2)[:3].lower(), 0)
+            mo = months.get(re.sub(r'1', 'l', m.group(2)[:3].lower()), 0)
             y = int(m.group(3))
             if self._is_valid_date(d, mo, y):
                 return f"{d:02d}/{mo:02d}/{y}"
@@ -195,25 +208,6 @@ class ReceiptExtractor:
 
         for m in re.finditer(r'\b(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})\b', joined):
             y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
-            if self._is_valid_date(d, mo, y):
-                return f"{d:02d}/{mo:02d}/{y}"
-
-        for m in re.finditer(
-            r'\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[\s,]+(\d{1,2})[\s,]+(\d{4})\b',
-            joined, re.IGNORECASE
-        ):
-            mo = months.get(m.group(1)[:3].lower(), 0)
-            d, y = int(m.group(2)), int(m.group(3))
-            if self._is_valid_date(d, mo, y):
-                return f"{d:02d}/{mo:02d}/{y}"
-
-        for m in re.finditer(
-            r'\b(\d{1,2})[\s,]+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*[\s,]+(\d{4})\b',
-            joined, re.IGNORECASE
-        ):
-            d = int(m.group(1))
-            mo = months.get(m.group(2)[:3].lower(), 0)
-            y = int(m.group(3))
             if self._is_valid_date(d, mo, y):
                 return f"{d:02d}/{mo:02d}/{y}"
 
@@ -250,19 +244,50 @@ class ReceiptExtractor:
         lower = text.lower()
         return "tax amount" in lower and "taxable" not in lower
 
+    # ── A line that IS the date/time header — must never be treated as a
+    # price candidate. A bare year (e.g. "2026") or a misread time value
+    # (OCR often turns "3:48 PM" into "3,48 PM") is a plausible-looking
+    # number that can otherwise outrank the real total whenever a receipt
+    # has no explicit "total" keyword line. ──
+    def _is_date_line(self, text: str) -> bool:
+        lower = text.lower()
+        if re.search(r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2}\b', lower):
+            return True
+        if re.search(r'\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}\b', text):
+            return True
+        if re.search(r'\b\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\b', text):
+            return True
+        if re.search(r'\b\d{1,2}[:,]\d{2}\s*(am|pm)\b', lower):
+            return True
+        return False
+
+    # ── A standalone currency-prefixed line ("Rs 1,535.00", "NPR 1,500")
+    # is a strong, explicit total signal on minimalist receipts/order slips
+    # that never say "total" at all — worth trusting ahead of the risky
+    # "largest number on the receipt" last resort. ──
+    def _is_currency_total_line(self, text: str) -> bool:
+        return bool(re.match(r'^(rs\.?|npr\.?|nrs\.?)\s*[,:]?\s*\d', text.strip(), re.IGNORECASE))
+
     def _is_header_row(self, text: str) -> bool:
-        keywords = ["item", "description", "qty", "quantity", "rate",
-                    "amount", "total", "slno", "sl.no", "hs code",
+        keywords = ["item", "description", "particulars", "qty", "quantity",
+                    "rate", "amount", "total", "slno", "sl.no", "hs code",
                     "item code", "disc", "amountnrs", "basic rate", "ltem",
                     "tqtal", "t0tal"]
         lower = text.lower()
         matches = sum(1 for k in keywords if k in lower)
         return matches >= 2
 
+    # ── A numbered line item (e.g. "1)_ PRINGLES SOUR 1.00 150.00 150.00")
+    # is proof the item section has started even when the actual column
+    # header row is too OCR-garbled to match _is_header_row at all — a
+    # header row's words often get mangled worse than the item rows below it. ──
+    def _is_numbered_item_line(self, text: str) -> bool:
+        return bool(re.match(r'^\s*\d{1,2}\)\s*_?\s*[A-Za-z]', text))
+
     def _is_skip_line(self, text: str) -> bool:
         keywords = [
             "vat", "gst", "tax amount", "discount amount", "offer discount",
-            "hs code", "item code", "page", "printed by", "print time",
+            "hs code", "hscode", "item code", "page", "printed by", "print time",
             "printed date", "printed_date", "customer name", "customer address",
             "customer vat", "phone", "email", "www", "http", "invoice no",
             "bill no", "table:", "pax", "order by", "order id", "thank you",
@@ -276,6 +301,16 @@ class ReceiptExtractor:
         ]
         lower = text.lower()
         return any(k in lower for k in keywords)
+
+    # ── OCR frequently misreads a "***"-style decorative divider around a
+    # header/vendor line as short all-caps noise like "XX" or "KX" (e.g.
+    # "XX MEGA MART PVT. LTD" or "XX Abbreviated Tax Invoice KX"). Strip it
+    # rather than let it get folded into the vendor name. Requires 2+ chars
+    # so a real single-letter brand prefix (e.g. "K Mart") is left alone. ──
+    def _strip_decorative_markers(self, text: str) -> str:
+        text = re.sub(r'^\s*[XK]{2,4}\b[\s:.]*', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'[\s:.]*\b[XK]{2,4}\.?\s*$', '', text, flags=re.IGNORECASE)
+        return text.strip()
 
     # ── Vendor extraction ──
     def _extract_vendor(self, lines: List[str]) -> str:
@@ -296,7 +331,7 @@ class ReceiptExtractor:
 
         candidates = []
         for line in lines[:12]:
-            clean = line.strip()
+            clean = self._strip_decorative_markers(line.strip())
             if not clean or len(clean) < 3:
                 continue
             if self._is_garbage_line(clean):
@@ -312,6 +347,17 @@ class ReceiptExtractor:
             if letter_count < 3:
                 continue
             candidates.append(clean)
+
+        # A single candidate line already containing the full "pvt ltd" phrase
+        # is the vendor on its own — must be checked before the adjacent-pair
+        # combiner below, or an unrelated preceding line (e.g. a logo/header
+        # line) gets wrongly glued onto it.
+        for c in candidates:
+            if any(k in c.lower() for k in ["pvt ltd", "pvt. ltd"]):
+                cleaned = re.sub(r'\s*[_]\s*.*$', '', c).strip()
+                cleaned = re.sub(r'\s+(Mr|Mrs|Ms|Dr)\b.*$', '', cleaned).strip()
+                cleaned = re.sub(r'(Pvt\.?\s*Ltd\.?).*$', r'\1', cleaned, flags=re.IGNORECASE).strip()
+                return cleaned
 
         for i in range(len(candidates) - 1):
             combined = candidates[i] + " " + candidates[i + 1]
@@ -340,7 +386,11 @@ class ReceiptExtractor:
 
     # ── Item name cleaner — works on ORIGINAL line ──
     def _clean_item_name(self, text: str) -> str:
-        cleaned = text.strip().replace('_', ' ')
+        cleaned = text.strip()
+        # Strip a leading numbered-item marker (e.g. "1)_ ", "2) _ ") before
+        # anything else, so it doesn't leave a stray digit/underscore behind.
+        cleaned = re.sub(r'^\d{1,2}\)\s*_*\s*', '', cleaned)
+        cleaned = cleaned.replace('_', ' ')
 
         # Remove trailing numeric table columns: qty/rate/discount/amount.
         matches = self._number_matches(cleaned)
@@ -446,8 +496,15 @@ class ReceiptExtractor:
             if not header_found:
                 if self._is_header_row(line):
                     header_found = True
-                i += 1
-                continue
+                    i += 1
+                    continue
+                if self._is_numbered_item_line(line):
+                    # This line IS the first item, not a label — fall through
+                    # to process it below instead of skipping past it.
+                    header_found = True
+                else:
+                    i += 1
+                    continue
 
             if self._is_total_line(line) or self._is_subtotal_line(line):
                 break
@@ -578,7 +635,11 @@ class ReceiptExtractor:
             if not header_found:
                 if self._is_header_row(line):
                     header_found = True
-                continue
+                    continue
+                if self._is_numbered_item_line(line):
+                    header_found = True
+                else:
+                    continue
 
             if self._is_skip_line(line) or self._is_garbage_line(line):
                 continue
@@ -674,9 +735,20 @@ class ReceiptExtractor:
                         break
 
         if data["total"] == 0:
+            for line in clean_lines:
+                if self._is_date_line(line):
+                    continue
+                if self._is_currency_total_line(line):
+                    prices = self._extract_all_prices(line)
+                    if prices:
+                        data["total"] = max(prices)
+                        print(f"✅ Total (currency-prefixed line): {data['total']}")
+                        break
+
+        if data["total"] == 0:
             all_prices = []
             for line in clean_lines:
-                if not self._is_skip_line(line) and not self._is_garbage_line(line):
+                if not self._is_skip_line(line) and not self._is_garbage_line(line) and not self._is_date_line(line):
                     all_prices.extend(self._extract_all_prices(line))
             if all_prices:
                 data["total"] = max(all_prices)
