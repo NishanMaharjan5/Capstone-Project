@@ -6,6 +6,7 @@ import TripCumulativeChart from '../components/TripCumulativeChart'
 import TripDayBreakdown from '../components/TripDayBreakdown'
 import TripVendorsChart from '../components/TripVendorsChart'
 import { deleteTrip, endTrip, getTripDetail } from '../api/trips'
+import { deleteReceipt } from '../api/receipts'
 import { useTrip } from '../trips/TripContext'
 import { formatMoney } from '../utils/receiptMath'
 
@@ -55,6 +56,17 @@ export default function TripDetail() {
       setError(err.message || 'Could not end trip')
     } finally {
       setIsEnding(false)
+    }
+  }
+
+  async function handleDeleteReceipt(id) {
+    if (!window.confirm('Delete this receipt?')) return
+
+    try {
+      await deleteReceipt(id)
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not delete receipt')
     }
   }
 
@@ -205,13 +217,16 @@ export default function TripDetail() {
                     <td>{receipt.date}</td>
                     <td>{receipt.category}</td>
                     <td>{formatMoney(receipt.total)}</td>
-                    <td>
+                    <td className="actions-cell">
                       <button
                         type="button"
                         className="link-button"
                         onClick={() => setExpandedId(expandedId === receipt._id ? null : receipt._id)}
                       >
                         {expandedId === receipt._id ? 'Hide Details' : 'View Details'}
+                      </button>
+                      <button type="button" className="link-button danger" onClick={() => handleDeleteReceipt(receipt._id)}>
+                        Delete
                       </button>
                     </td>
                   </tr>

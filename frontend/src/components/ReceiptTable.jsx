@@ -78,7 +78,7 @@ export default function ReceiptTable({ receipts, onDelete }) {
                     {expandedId === receipt._id ? 'Hide Details' : 'View Details'}
                   </button>
                   <button type="button" className="link-button danger" onClick={() => handleDelete(receipt._id)}>
-                    🗑
+                    Delete
                   </button>
                 </td>
               </tr>
