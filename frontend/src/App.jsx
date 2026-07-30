@@ -1,60 +1,34 @@
 import { Suspense, lazy } from 'react'
-import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './auth/AuthContext'
 import ProtectedRoute from './auth/ProtectedRoute'
-import UserMenu from './components/UserMenu'
+import AppShell from './components/AppShell'
+import AddExpense from './pages/AddExpense'
 import Dashboard from './pages/Dashboard'
 import ForgotPassword from './pages/ForgotPassword'
 import History from './pages/History'
 import Login from './pages/Login'
+import Profile from './pages/Profile'
 import Register from './pages/Register'
-import { UploadProvider, useUpload } from './receipts/UploadContext'
+import ScanReceipt from './pages/ScanReceipt'
+import { UploadProvider } from './receipts/UploadContext'
 import { TripProvider } from './trips/TripContext'
 
 // Lazy-loaded: pulls in Plotly, which is large — no reason to ship it on every route.
 const Analytics = lazy(() => import('./pages/Analytics'))
 const Budgets = lazy(() => import('./pages/Budgets'))
+const Income = lazy(() => import('./pages/Income'))
 const Trips = lazy(() => import('./pages/Trips'))
 const TripDetail = lazy(() => import('./pages/TripDetail'))
 
 function AppLayout({ children }) {
-  const { isAuthenticated, logout, user } = useAuth()
-  const { isAnalyzing, draft } = useUpload()
+  const { isAuthenticated } = useAuth()
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <Link to="/" className="brand">
-          Receipt Analyzer
-        </Link>
-        <nav className="nav-links" aria-label="Main navigation">
-          {isAuthenticated ? (
-            <>
-              <Link to="/">Dashboard</Link>
-              <Link to="/history">History</Link>
-              <Link to="/analytics">Analytics</Link>
-              <Link to="/budgets">Budgets</Link>
-              <Link to="/trips">Trips</Link>
-              {isAnalyzing ? (
-                <span className="user-chip">Analyzing receipt...</span>
-              ) : draft ? (
-                <Link to="/" className="user-chip">
-                  Receipt ready to review
-                </Link>
-              ) : null}
-              <UserMenu user={user} onLogout={logout} />
-            </>
-          ) : (
-            <>
-              <Link to="/login">Login</Link>
-              <Link to="/register">Register</Link>
-            </>
-          )}
-        </nav>
-      </header>
-      <main>{children}</main>
-    </div>
-  )
+  if (!isAuthenticated) {
+    return <main className="min-h-screen bg-cream">{children}</main>
+  }
+
+  return <AppShell>{children}</AppShell>
 }
 
 function AppRoutes() {
@@ -66,7 +40,10 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/add" element={<AddExpense />} />
+          <Route path="/scan" element={<ScanReceipt />} />
           <Route path="/history" element={<History />} />
+          <Route path="/profile" element={<Profile />} />
           <Route
             path="/analytics"
             element={
@@ -80,6 +57,14 @@ function AppRoutes() {
             element={
               <Suspense fallback={<p>Loading budgets...</p>}>
                 <Budgets />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/income"
+            element={
+              <Suspense fallback={<p>Loading income...</p>}>
+                <Income />
               </Suspense>
             }
           />

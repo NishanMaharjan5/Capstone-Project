@@ -65,6 +65,11 @@ export default function Login() {
   return (
     <section className="auth-view">
       <form className="auth-card" onSubmit={handleSubmit}>
+        <div className="auth-brand">
+          <span className="auth-brand-mark" />
+          <span className="auth-brand-name">Centa</span>
+        </div>
+
         <div className="section-heading">
           <p className="eyebrow">Welcome back</p>
           <h1>Sign in</h1>

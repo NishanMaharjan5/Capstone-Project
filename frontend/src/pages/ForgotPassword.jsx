@@ -61,6 +61,11 @@ export default function ForgotPassword() {
         className="auth-card"
         onSubmit={step === 'request' ? requestOtp : verifyOtp}
       >
+        <div className="auth-brand">
+          <span className="auth-brand-mark" />
+          <span className="auth-brand-name">Centa</span>
+        </div>
+
         <div className="section-heading">
           <p className="eyebrow">Account recovery</p>
           <h1>Reset password</h1>

@@ -1,75 +1,81 @@
-import { createContext, useContext, useMemo, useState } from 'react'
-import { clearStoredSession } from '../api/client'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import { loginUser, registerUser } from '../api/auth'
+import { clearStoredSession } from '../api/client'
 
 const AuthContext = createContext(null)
 
 function readStoredUser() {
   const token = localStorage.getItem('token')
-  if (!token) return null
+  const name = localStorage.getItem('userName')
+  const email = localStorage.getItem('userEmail')
 
-  return {
-    token,
-    name: localStorage.getItem('userName') || 'User',
-    email: localStorage.getItem('userEmail') || '',
-  }
+  if (!token) return { token: null, user: null }
+  return { token, user: { name, email } }
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(readStoredUser)
+  const [{ token, user }, setSession] = useState(readStoredUser)
 
-  function persistSession(data, email = '') {
+  const storeSession = useCallback((data, fallbackEmail) => {
+    const email = data.email || fallbackEmail || ''
     localStorage.setItem('token', data.access_token)
-    localStorage.setItem('userName', data.name || 'User')
+    localStorage.setItem('userName', data.name || '')
     localStorage.setItem('userEmail', email)
+    setSession({ token: data.access_token, user: { name: data.name, email } })
+  }, [])
 
-    const nextUser = {
-      token: data.access_token,
-      name: data.name || 'User',
-      email,
-    }
-    setUser(nextUser)
-    return nextUser
-  }
+  const login = useCallback(
+    async ({ email, password }) => {
+      const data = await loginUser({ email, password })
+      storeSession(data, email)
+      return data
+    },
+    [storeSession],
+  )
 
-  async function login(credentials) {
-    const data = await loginUser(credentials)
-    return persistSession(data, credentials.email)
-  }
+  const register = useCallback(
+    async ({ name, email, password }) => {
+      const data = await registerUser({ name, email, password })
+      storeSession(data, email)
+      return data
+    },
+    [storeSession],
+  )
 
-  async function register(details) {
-    const data = await registerUser(details)
-    return persistSession(data, details.email)
-  }
+  // Used by Google login/register flows, which already have a token response
+  // in hand and just need it applied to the session.
+  const acceptAuthResponse = useCallback(
+    (data, fallbackEmail) => {
+      storeSession(data, fallbackEmail)
+    },
+    [storeSession],
+  )
 
-  function acceptAuthResponse(data, email = '') {
-    return persistSession(data, email)
-  }
-
-  function logout() {
+  const logout = useCallback(() => {
     clearStoredSession()
-    setUser(null)
-  }
+    setSession({ token: null, user: null })
+  }, [])
 
   const value = useMemo(
     () => ({
+      isAuthenticated: Boolean(token),
+      token,
       user,
-      isAuthenticated: Boolean(user?.token),
       login,
       register,
       acceptAuthResponse,
       logout,
     }),
-    [user],
+    [token, user, login, register, acceptAuthResponse, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used inside AuthProvider')
+  const ctx = useContext(AuthContext)
+  if (!ctx) {
+    throw new Error('useAuth must be used within an AuthProvider')
   }
-  return context
+  return ctx
 }

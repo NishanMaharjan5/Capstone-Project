@@ -19,9 +19,9 @@ function getValidItems(rows) {
     .filter((item) => item.name && item.quantity > 0)
 }
 
-export default function ManualReceiptForm({ onSaved }) {
+export default function ManualReceiptForm({ onSaved, defaultOpen = false }) {
   const { activeTrip } = useTrip()
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(defaultOpen)
   const [vendor, setVendor] = useState('')
   const [date, setDate] = useState('')
   const [category, setCategory] = useState('')
