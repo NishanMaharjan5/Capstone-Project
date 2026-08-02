@@ -89,6 +89,21 @@ npm run dev
 
 Open `http://localhost:5173`, register an account, and start using it.
 
+## Running with Docker
+
+No Python/Node/venv setup needed — just Docker Desktop installed and running.
+
+```bash
+cp backend/.env.example backend/.env   # fill in values — see table below
+docker compose up --build
+```
+
+Then open:
+- `http://localhost:5173` — frontend
+- `http://localhost:8000` — backend
+
+Both containers hot-reload on code changes, so you can edit files normally without rebuilding. The first run downloads PyTorch/EasyOCR and its OCR models, so it's slow (several minutes) — subsequent runs are much faster.
+
 ## Environment variables
 
 **`backend/.env`**
