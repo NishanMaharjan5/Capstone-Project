@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend:/app
+      - easyocr-models:/root/.EasyOCR
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      # Docker Desktop on macOS doesn't reliably propagate native filesystem
+      # events through the bind mount below, so Vite's watcher (chokidar)
+      # never sees host-side edits without this. Polling only applies inside
+      # the container — doesn't affect running the frontend outside Docker.
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  easyocr-models:
