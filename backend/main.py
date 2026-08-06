@@ -6,7 +6,6 @@ from app.routers.receipt import router as receipts_router
 from app.routers.auth import router as auth_router
 from app.routers.budget import router as budget_router
 from app.routers.trip import router as trip_router
-from app.routers.income import router as income_router
 import os
 from app.db.connection import db
 
@@ -58,7 +57,6 @@ app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(receipts_router, prefix="/api/receipts", tags=["receipts"])
 app.include_router(budget_router, prefix="/api/budgets", tags=["budgets"])
 app.include_router(trip_router, prefix="/api/trips", tags=["trips"])
-app.include_router(income_router, prefix="/api/income", tags=["income"])
 
 @app.get("/health")
 async def health():

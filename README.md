@@ -99,6 +99,7 @@ docker compose up --build
 ```
 
 Then open:
+
 - `http://localhost:5173` — frontend
 - `http://localhost:8000` — backend
 
@@ -108,21 +109,41 @@ Both containers hot-reload on code changes, so you can edit files normally witho
 
 **`backend/.env`**
 
-| Variable | Required? | Notes |
-|---|---|---|
-| `MONGODB_URL` | Yes | e.g. `mongodb://localhost:27017` for a local instance |
-| `DATABASE_NAME` | Yes | e.g. `receipt_analyzer` |
-| `SECRET_KEY` | Yes | Signs JWTs — generate your own with `python3 -c "import secrets; print(secrets.token_hex(32))"`. The app refuses to start without this set. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Only for Google sign-in | Leave as placeholders to skip that login option |
-| `MAIL_EMAIL` / `MAIL_PASSWORD` | Only for forgot-password OTP emails | Leave blank to skip that flow |
+| Variable                                    | Required?                           | Notes                                                                                                                                       |
+| ------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MONGODB_URL`                               | Yes                                 | e.g. `mongodb://localhost:27017` for a local instance                                                                                       |
+| `DATABASE_NAME`                             | Yes                                 | e.g. `receipt_analyzer`                                                                                                                     |
+| `SECRET_KEY`                                | Yes                                 | Signs JWTs — generate your own with `python3 -c "import secrets; print(secrets.token_hex(32))"`. The app refuses to start without this set. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Only for Google sign-in             | Leave as placeholders to skip that login option                                                                                             |
+| `MAIL_EMAIL` / `MAIL_PASSWORD`              | Only for forgot-password OTP emails | Leave blank to skip that flow                                                                                                               |
 
 **`frontend/.env`**
 
-| Variable | Required? | Notes |
-|---|---|---|
-| `VITE_API_BASE_URL` | Yes | Defaults to `http://localhost:8000`, correct for local dev |
-| `VITE_GOOGLE_CLIENT_ID` | Only for Google sign-in | Same client ID as the backend's |
+| Variable                | Required?               | Notes                                                      |
+| ----------------------- | ----------------------- | ---------------------------------------------------------- |
+| `VITE_API_BASE_URL`     | Yes                     | Defaults to `http://localhost:8000`, correct for local dev |
+| `VITE_GOOGLE_CLIENT_ID` | Only for Google sign-in | Same client ID as the backend's                            |
 
-## Screenshots
+# Screenshots
 
-_TODO: add screenshots of the dashboard, analytics, budgets, and trip summary pages._
+## Dashboard
+
+![Dashboard](images/dashboard.png)
+
+## Analytics
+
+![Analytics](images/analytics.png)
+
+## Budget Page
+
+![Budget 1](images/Budget1.png)
+
+![Budget 2](images/Budget2.png)
+
+![Budget 3](images/Budget3.png)
+
+![Budget 4](images/Budget4.png)
+
+## Trip Page
+
+![Trip](images/Trip.png)
